@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Administración - Tienda Online</title>
+    <title>Ecommerce | Administración de productos</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -928,13 +928,18 @@
         <!-- Sidebar -->
         <aside class="admin-sidebar">
             <div class="sidebar-brand">
-                <div class="logo">ADMIN<span>PANEL</span></div>
+                <a class="logo" href="../index.html">Ecommerce</a>
             </div>
             <nav class="sidebar-nav">
                 <ul>
                     <li>
                         <button class="sidebar-link active" id="nav-prod" onclick="switchAdminView('products')">
                             <i class="fa-solid fa-box-open"></i> Productos
+                        </button>
+                    </li>
+                    <li>
+                        <button class="sidebar-link" onclick="window.location.href='../html/cart.html'">
+                            <i class="fa-solid fa-cart-shopping"></i> Carrito
                         </button>
                     </li>
                     <li class="sidebar-separator"></li>
@@ -1532,7 +1537,6 @@
                                         <th>Precio</th>
                                         <th>Stock</th>
                                         <th>Categoría</th>
-                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1553,11 +1557,6 @@
                                 <td>$${precio}</td>
                                 <td><span class="stock-pill ${stock <= 0 ? 'is-empty' : ''}">${stock}</span></td>
                                 <td><span class="category-chip">${escapeHtml(categoria)}</span></td>
-                                <td class="admin-actions">
-                                    <button class="btn-edit" onclick="editProduct(${product.id})">
-                                        <i class="fa-solid fa-pencil"></i> Editar
-                                    </button>
-                                </td>
                             </tr>
                         `;
                     });
@@ -2393,10 +2392,9 @@
             
             // Exponer funciones globalmente
             window.switchAdminView = switchAdminView;
-            window.openProductModal = openProductModal;
+            window.openProductModal = () => openProductModal();
             window.openCustomerModal = openCustomerModal;
             window.openCouponModal = openCouponModal;
-            window.editProduct = editProduct;
             window.deleteProduct = deleteProduct;
             window.editCustomer = editCustomer;
             window.deleteCustomer = deleteCustomer;

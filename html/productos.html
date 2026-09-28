@@ -6,13 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <title>Tienda Online - Productos</title>
+    <title>Ecommerce | Productos</title>
 </head>
 
 <body>
     <header>
         <div class="logo-container">
-            <p class="logo">Tienda<span>Online</span></p>
+            <a class="logo" href="../index.html">Ecommerce</a>
         </div>
         <div class="hamburger-menu" id="hamburger-menu">
             <span></span>
@@ -23,9 +23,7 @@
             <ul>
                 <li><a href="../index.html">Inicio</a></li>
                 <li><a href="./productos.html">Productos</a></li>
-                <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span id="cart-count">0</span></a></li>
-                <li><a href="./login.html" id="btn-nav-login" class="nav-login">Login</a></li>
-                <li><a href="#" id="btn-nav-logout" class="nav-login" onclick="logoutUsuario(); return false;" style="display:none;">Salir</a></li>
+                <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span class="nav-cart-label">Carrito</span><span id="cart-count">0</span></a></li>
             </ul>
         </nav>
     </header>
@@ -37,14 +35,6 @@
             <form id="product-controls">
                 <label for="product-search">Buscar por nombre</label>
                 <input type="search" id="product-search" placeholder="Ej. Cafetera" autocomplete="off">
-                <label for="product-sort">Ordenar</label>
-                <select id="product-sort">
-                    <option value="id-asc">Orden predeterminado</option>
-                    <option value="precio-asc">Precio: menor a mayor</option>
-                    <option value="precio-desc">Precio: mayor a menor</option>
-                    <option value="nombre-asc">Nombre: A-Z</option>
-                    <option value="nombre-desc">Nombre: Z-A</option>
-                </select>
                 <button type="submit" class="btn-buy">Buscar</button>
             </form>
             <div class="filters-container">
@@ -61,10 +51,10 @@
     </main>
     <footer>
         <div>
-            <p><span>Trabajo Práctico PP2 - Equipo 1 - IFTS-16</span> - &copy; 2026 Tienda Online. Todos los derechos reservados.</p>
+            <p><span>Ecommerce</span></p>
         </div>
     </footer>
-    <script src="../js/main.js?v=dynamic-categories"></script>
+    <script src="../js/main.js?v=ecommerce-mvp-1"></script>
 </body>
 
 </html>

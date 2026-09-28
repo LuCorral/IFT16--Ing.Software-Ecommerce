@@ -6,11 +6,33 @@ EcommerceApp2 es una aplicación web de tienda online construida con **Node.js**
 
 ## Demo Sprint 1
 
-Esta rama prepara una demostración acotada al primer sprint. La interfaz visible incluye catálogo y detalle de productos, búsqueda por nombre, filtro por categoría, orden por precio o nombre, alta y modificación de productos desde el panel admin, carrito local con control de stock, creación de pedidos y cancelación de pedidos pendientes.
+La identidad visible de la aplicación en esta demo es **Ecommerce**.
 
-Para la demo se ocultan de la interfaz el registro, clientes/usuarios, cupones/descuentos, exportaciones, eliminación de productos, contacto, newsletter, promociones, tickets/facturación y reseñas/calificaciones. Sus rutas, modelos y datos permanecen en el repositorio. El campo opcional `descripcion` se agrega al modelo de productos para presentar el detalle; los productos existentes sin descripción muestran un texto alternativo.
+El incremento visible está centrado en el flujo `Inicio -> Productos -> Detalle -> Carrito -> Confirmar pedido`:
 
-Los pedidos nuevos guardan una marca `demo-user:<id>:<email>` en el campo existente `Pedido.cliente`. Las consultas y cancelaciones de clientes se limitan a esa marca; los administradores conservan acceso a todos. Los pedidos antiguos sin esa marca no se muestran a clientes. La cancelación solo acepta pedidos pendientes, conserva pedido y detalles, y repone el stock en una transacción.
+- Inicio con productos destacados.
+- Catálogo, detalle, búsqueda por nombre y filtro por categoría.
+- Carrito con agregar, ajustar cantidades, quitar productos, validación de stock y cálculo de subtotales/total.
+- Confirmación de compra que crea el pedido y sus detalles, descuenta stock y vacía el carrito.
+
+El checkout visible usa el endpoint dedicado `/api/pedidos/demo`, que comparte la validación de stock y la transacción Sequelize para crear `Pedido` y `DetallePedido`, pero no requiere iniciar sesión. La ruta autenticada existente `POST /api/pedidos` se conserva para el resto del sistema. JWT, roles y middlewares no se eliminaron.
+
+Las páginas web heredadas de administración, login y contacto redirigen al inicio en esta demo. Esto no elimina sus endpoints ni controladores.
+
+### Funcionalidades previstas para próximos sprints
+
+- Autenticación y login visible, roles y administración.
+- Alta, modificación y eliminación administrativa de productos.
+- Ordenamiento de productos.
+- Historial y cancelación de pedidos.
+- Gestión de usuarios y clientes.
+- Cupones, descuentos, exportaciones, tickets/facturación y otras herramientas administrativas.
+
+Estas funciones no se ofrecen en la interfaz de demostración. Sus rutas, modelos y lógica existente se conservan.
+
+Parte de la infraestructura de autenticación con JWT y roles ya se encuentra implementada internamente como trabajo técnico adelantado, aunque no forma parte del incremento funcional visible del Sprint 1.
+
+El campo opcional `descripcion` permite mostrar el detalle del producto; los productos existentes sin descripción muestran un texto alternativo. Los pedidos del checkout demo se identifican como `Compra de demostración` en el campo existente `Pedido.cliente`; no se agregan tablas ni se cambian las relaciones del modelo. El seed de productos actualiza ocho entradas de ejemplo en sitio, conservando sus IDs e imágenes existentes.
 
 ### Inicio rápido
 
@@ -26,7 +48,7 @@ Copiar `.env.example` como `.env` y configurar `JWT_SECRET` con un valor local p
 npm start
 ```
 
-Abrir `http://localhost:3000`. El inicio sincroniza los modelos con SQLite mediante el `sequelize.sync({ alter: true })` existente. El panel admin y la creación de pedidos requieren inicio de sesión. Para una instalación nueva, cargar productos con `npm run seed` y crear usuarios de prueba con `npm run seed:users`; las credenciales de prueba documentadas más abajo solo aplican si se ejecuta ese seed.
+Abrir `http://localhost:3000`. El inicio sincroniza los modelos con SQLite mediante el `sequelize.sync({ alter: true })` existente. Para cargar o actualizar los productos de ejemplo, ejecutar `npm run seed`; el seed actualiza ocho productos de la lista existente sin eliminar filas ni cambiar sus IDs.
 
 ---
 

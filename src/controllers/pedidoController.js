@@ -51,7 +51,7 @@ const pedidoController = {
 
   create: async (req, res) => {
     try {
-      if (!req.user?.id || !Array.isArray(req.body.productos) || req.body.productos.length === 0) {
+      if (!Array.isArray(req.body.productos) || req.body.productos.length === 0) {
         return res.status(400).json({ mensaje: 'El pedido debe incluir productos válidos' });
       }
 
@@ -86,7 +86,7 @@ const pedidoController = {
         }
 
         const pedido = await Pedido.create({
-          cliente: getOwnerTag(req.user),
+          cliente: req.user?.id ? getOwnerTag(req.user) : 'Compra de demostración',
           fecha: new Date().toISOString().split('T')[0],
           estado: 'Pendiente',
           total,

@@ -5,74 +5,82 @@ const Producto = require("./src/models/Producto");
 
 const productosIniciales = [
   {
-    nombre: "Pava Eléctrica Corte Mate 1.7L",
-    precio: 34990,
-    stock: 0,
-    categoria: "Electrodomésticos",
-    image: "/img/PavaEléctrica.png",
+    nombre: "Aro de luz LED de escritorio con trípode",
+    precio: 27990,
+    stock: 36,
+    categoria: "Accesorios",
+    descripcion: "Iluminación regulable para videollamadas, lectura y trabajo en escritorio.",
+    image: "/img/ArodeLuzLED.png",
     rating: 4.5,
     reviews: 310,
   },
   {
-    nombre: "Cafetera Express 15 Bares",
-    precio: 159990,
-    stock: 15,
-    categoria: "Electrodomésticos",
-    image: "/img/CafeteraExpress.png",
+    nombre: "Parlante Bluetooth compacto",
+    precio: 42990,
+    stock: 28,
+    categoria: "Audio",
+    descripcion: "Parlante portátil con conexión inalámbrica y batería recargable.",
+    image: "/img/ParlanteBluetooth.png",
     rating: 4.8,
     reviews: 95,
   },
   {
-    nombre: "Licuadora de Mano 800W",
-    precio: 42990,
-    stock: 25,
-    categoria: "Electrodomésticos",
-    image: "/img/LicuadoraMano.png",
+    nombre: "Auriculares deportivos inalámbricos",
+    precio: 38990,
+    stock: 32,
+    categoria: "Audio",
+    descripcion: "Auriculares Bluetooth livianos para escuchar música durante el día.",
+    image: "/img/AuricularesBluetooth.png",
     rating: 4.2,
     reviews: 115,
   },
   {
-    nombre: "Tostadora Eléctrica Oster",
-    precio: 29990,
-    stock: 35,
-    categoria: "Electrodomésticos",
-    image: "/img/TostadoraElectrica.png",
+    nombre: "Mouse inalámbrico compacto",
+    precio: 21990,
+    stock: 48,
+    categoria: "Periféricos",
+    descripcion: "Mouse óptico inalámbrico de tamaño compacto para uso diario.",
+    image: "/img/MouseLogitechM280.png",
     rating: 4.0,
     reviews: 78,
   },
   {
-    nombre: "Microondas Digital 20L BGH",
-    precio: 184990,
-    stock: 12,
-    categoria: "Electrodomésticos",
-    image: "/img/MicroondasBGH.png",
+    nombre: "Webcam Full HD para videollamadas",
+    precio: 35990,
+    stock: 24,
+    categoria: "Periféricos",
+    descripcion: "Cámara web Full HD con micrófono integrado para reuniones y clases.",
+    image: "/img/WebcamFullHD.png",
     rating: 4.6,
     reviews: 204,
   },
   {
-    nombre: "Aspiradora Robot Inteligente Wi-Fi",
-    precio: 299990,
-    stock: 8,
-    categoria: "Electrodomésticos",
-    image: "/img/AspiradoraRobot.png",
+    nombre: "Cámara WiFi de seguridad para el hogar",
+    precio: 48990,
+    stock: 18,
+    categoria: "Hogar conectado",
+    descripcion: "Cámara de seguridad conectada por WiFi para monitorear espacios del hogar.",
+    image: "/img/CamaraSeguridadExterior.png",
     rating: 4.4,
     reviews: 62,
   },
   {
-    nombre: "Balanza de Cocina Digital 5kg",
-    precio: 12990,
-    stock: 60,
-    categoria: "Electrodomésticos",
-    image: "/img/BalanzaCocina.png",
+    nombre: "Batería portátil Powerbank 20000 mAh",
+    precio: 42990,
+    stock: 34,
+    categoria: "Accesorios",
+    descripcion: "Batería portátil de alta capacidad para cargar dispositivos durante el día.",
+    image: "/img/Powerbank20000mAh.png",
     rating: 4.7,
     reviews: 412,
   },
   {
-    nombre: "Exprimidor de Cítricos Eléctrico 1L",
-    precio: 24990,
-    stock: 40,
-    categoria: "Electrodomésticos",
-    image: "/img/ExprimidorCitricos.png",
+    nombre: "Soporte plegable para celular y tablet",
+    precio: 16990,
+    stock: 42,
+    categoria: "Accesorios",
+    descripcion: "Soporte ajustable para mantener el celular o la tablet a la vista.",
+    image: "/img/SoporteCelularCarga.png",
     rating: 4.1,
     reviews: 88,
   },
@@ -258,6 +266,17 @@ const productosIniciales = [
   },
 ];
 
+const nombresAnteriores = new Map([
+  ["Aro de luz LED de escritorio con trípode", "Pava Eléctrica Corte Mate 1.7L"],
+  ["Parlante Bluetooth compacto", "Cafetera Express 15 Bares"],
+  ["Auriculares deportivos inalámbricos", "Licuadora de Mano 800W"],
+  ["Mouse inalámbrico compacto", "Tostadora Eléctrica Oster"],
+  ["Webcam Full HD para videollamadas", "Microondas Digital 20L BGH"],
+  ["Cámara WiFi de seguridad para el hogar", "Aspiradora Robot Inteligente Wi-Fi"],
+  ["Batería portátil Powerbank 20000 mAh", "Balanza de Cocina Digital 5kg"],
+  ["Soporte plegable para celular y tablet", "Exprimidor de Cítricos Eléctrico 1L"],
+]);
+
 async function seedDatabase() {
   try {
     console.log("📂 Conectando a la base de datos...");
@@ -275,6 +294,17 @@ async function seedDatabase() {
     for (let i = 0; i < productosIniciales.length; i++) {
       const producto = productosIniciales[i];
       try {
+        const nombreAnterior = nombresAnteriores.get(producto.nombre);
+        const productoExistente = nombreAnterior
+          ? await Producto.findOne({ where: { nombre: nombreAnterior } })
+          : null;
+
+        if (productoExistente) {
+          await productoExistente.update(producto);
+          console.log(`   ↻ ${i + 1}. Actualizado: ${producto.nombre}`);
+          continue;
+        }
+
         const [, created] = await Producto.findOrCreate({
           where: { nombre: producto.nombre },
           defaults: producto,
