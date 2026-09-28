@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="UTF-8">
@@ -23,7 +23,6 @@
             <ul>
                 <li><a href="../index.html">Inicio</a></li>
                 <li><a href="./productos.html">Productos</a></li>
-                <li><a href="./contacto.html">Contacto</a></li>
                 <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span id="cart-count">0</span></a></li>
                 <li><a href="./login.html" id="btn-nav-login" class="nav-login">Login</a></li>
                 <li><a href="#" id="btn-nav-logout" class="nav-login" onclick="logoutUsuario(); return false;" style="display:none;">Salir</a></li>
@@ -34,7 +33,20 @@
         <section class="product-title">
             <h1>Nuestros productos</h1>
         </section>
-        <section>
+        <section class="catalog-controls">
+            <form id="product-controls">
+                <label for="product-search">Buscar por nombre</label>
+                <input type="search" id="product-search" placeholder="Ej. Cafetera" autocomplete="off">
+                <label for="product-sort">Ordenar</label>
+                <select id="product-sort">
+                    <option value="id-asc">Orden predeterminado</option>
+                    <option value="precio-asc">Precio: menor a mayor</option>
+                    <option value="precio-desc">Precio: mayor a menor</option>
+                    <option value="nombre-asc">Nombre: A-Z</option>
+                    <option value="nombre-desc">Nombre: Z-A</option>
+                </select>
+                <button type="submit" class="btn-buy">Buscar</button>
+            </form>
             <div class="filters-container">
                 <h3>Filtrar por categoría</h3>
                 <div class="filters-buttons" id="category-filters">

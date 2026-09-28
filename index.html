@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="UTF-8">
@@ -23,7 +23,6 @@
             <ul>
                 <li><a href="./index.html">Inicio</a></li>
                 <li><a href="./html/productos.html">Productos</a></li>
-                <li><a href="./html/contacto.html">Contacto</a></li>
                 <li><a href="./html/cart.html"><i class="fa-solid fa-cart-shopping"></i><span id="cart-count">0</span></a></li>
                 <li><a href="./html/login.html" id="btn-nav-login" class="nav-login">Login</a></li>
                 <li><a href="#" id="btn-nav-logout" class="nav-login" onclick="logoutUsuario(); return false;" style="display:none;">Salir</a></li>
@@ -32,10 +31,9 @@
     </header>
     <main>
         <section class="hero">
-            <h1>¡Bienvenido a Nuestra Tienda Online!</h1>
-            <p>Encuentra los mejores productos tecnológicos a precios increíbles. ¡Compra ahora y disfruta de las
-                mejores ofertas!</p>
-            <a href="./html/productos.html" class="btn-hero">Ver Ofertas →</a>
+            <h1>Catálogo de productos</h1>
+            <p>Explorá los productos disponibles y encontrá lo que necesitás.</p>
+            <a href="./html/productos.html" class="btn-hero">Explorar catálogo</a>
         </section>
         
         <!-- Sección de Productos Destacados MEJORADA -->
@@ -45,7 +43,7 @@
         </section>
 
         <!-- Beneficios/Métodos de pago -->
-        <section class="benefits">
+        <section class="benefits" hidden>
             <div class="benefit">
                 <i class="fa-solid fa-truck-fast"></i>
                 <div>
@@ -77,7 +75,7 @@
         </section>
 
         <!-- Sección Info (la que ya tenías, la mantengo) -->
-        <section class="info-section">
+        <section class="info-section" hidden>
             <div class="info-section-container">
                 <h2>Soluciones</h2>
                 <p>"Toda la tecnología que buscás, a un clic de distancia."</p>
@@ -93,7 +91,7 @@
         </section>
 
         <!-- Newsletter -->
-        <section class="newsletter">
+        <section class="newsletter" hidden>
             <div class="newsletter-content">
                 <i class="fa-solid fa-envelope"></i>
                 <h3>¡Ofertas exclusivas!</h3>

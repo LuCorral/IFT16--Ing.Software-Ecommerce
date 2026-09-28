@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="UTF-8">
@@ -23,7 +23,6 @@
             <ul>
                 <li><a href="../index.html">Inicio</a></li>
                 <li><a href="./productos.html">Productos</a></li>
-                <li><a href="./contacto.html">Contacto</a></li>
                 <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span id="cart-count">0</span></a></li>
                 <li><a href="./login.html" id="btn-nav-login" class="nav-login">Login</a></li>
                 <li><a href="#" id="btn-nav-logout" class="nav-login" onclick="logoutUsuario(); return false;" style="display:none;">Salir</a></li>
@@ -34,7 +33,7 @@
     <div class="auth-container">
         <div class="auth-tabs">
             <button class="tab-btn active" id="tab-login" onclick="switchAuth('login')">Iniciar Sesión</button>
-            <button class="tab-btn" id="tab-register" onclick="switchAuth('register')">Crear Cuenta</button>
+            <button class="tab-btn" id="tab-register" hidden onclick="switchAuth('register')">Crear Cuenta</button>
         </div>
 
         <form id="form-login" class="auth-form active">
@@ -52,10 +51,10 @@
             </div>
             
             <button type="submit" class="btn-auth">Ingresar</button>
-            <a href="#" class="auth-link">¿Olvidaste tu contraseña?</a>
+            <a href="#" class="auth-link" hidden>¿Olvidaste tu contraseña?</a>
         </form>
 
-        <form id="form-register" class="auth-form">
+        <form id="form-register" class="auth-form" hidden>
             <h2>Crear una cuenta</h2>
             <p class="auth-subtitle">Registrate para realizar tus compras más rápido.</p>
             

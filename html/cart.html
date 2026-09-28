@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="UTF-8">
@@ -23,7 +23,6 @@
             <ul>
                 <li><a href="../index.html">Inicio</a></li>
                 <li><a href="./productos.html">Productos</a></li>
-                <li><a href="./contacto.html">Contacto</a></li>
                 <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span id="cart-count">0</span></a></li>
                 <li><a href="./login.html" id="btn-nav-login" class="nav-login">Login</a></li>
                 <li><a href="#" id="btn-nav-logout" class="nav-login" onclick="logoutUsuario(); return false;" style="display:none;">Salir</a></li>
@@ -36,15 +35,14 @@
             <div id="cart-items">
             </div>
             <div class="cart-summary">
-                <div class="coupon-section">
-                    <input type="text" id="coupon-code" placeholder="Ingresa tu código de cupón">
-                    <button id="btn-apply-coupon" class="btn-secondary">Aplicar cupón</button>
-                    <p id="coupon-message" class="coupon-message"></p>
-                </div>
                 <p>Total: <span id="cart-total">$0</span></p>
-                <button id="btn-checkout" class="btn-buy">Finalizar Pago</button>
+                <button id="btn-checkout" class="btn-buy">Crear pedido</button>
                 <button id="btn-empty" class="btn-empty">Vaciar Carrito</button>
             </div>
+        </section>
+        <section class="orders-section">
+            <h2>Mis pedidos</h2>
+            <div id="orders-container"></div>
         </section>
     </main>
     <footer>

@@ -9,6 +9,12 @@ const productosController = {
   getAll: async (req, res) => {
     try {
       const { categoria, nombre } = req.query;
+      const sortBy = ['precio', 'nombre'].includes(req.query.sortBy)
+        ? req.query.sortBy
+        : 'id';
+      const sortOrder = ['asc', 'desc'].includes(String(req.query.sortOrder).toLowerCase())
+        ? String(req.query.sortOrder).toUpperCase()
+        : 'ASC';
       const { page, limit, offset } = getPaginationParams(req.query, 6);
       const today = new Date();
 
@@ -29,7 +35,7 @@ const productosController = {
 
       const { count, rows: productos } = await Producto.findAndCountAll({
         where: whereCondition,
-        order: [["id", "ASC"]],
+        order: [[sortBy, sortOrder]],
         limit,
         offset,
       });
@@ -42,6 +48,7 @@ const productosController = {
         precio: producto.precio,
         stock: producto.stock,
         categoria: producto.categoria,
+        descripcion: producto.descripcion,
         image: producto.image,
         rating: producto.rating,
         reviews: producto.reviews,
@@ -79,6 +86,7 @@ const productosController = {
       precio: producto.precio,
       stock: producto.stock,
       categoria: producto.categoria,
+      descripcion: producto.descripcion,
       image: producto.image,
       rating: producto.rating,
       reviews: producto.reviews,

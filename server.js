@@ -72,7 +72,7 @@ app.use("/api/cupones", cuponRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/clientes", clientesRoutes);
 app.use("/api/usuarios", usuariosRoutes);
-app.use("/api/pedidos", authenticateToken, isAdmin, pedidoRoutes);
+app.use("/api/pedidos", pedidoRoutes);
 app.use("/api/detalles-pedido", authenticateToken, isAdmin, detallePedidoRoutes);
 app.use("/api/tickets", authenticateToken, isAdmin, ticketsRoutes);
 

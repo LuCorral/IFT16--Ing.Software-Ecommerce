@@ -4,6 +4,8 @@ let accumulatedProducts = [];
 let currentCategory = 'all';
 let currentProductsPage = 1;
 let productsPagination = null;
+let productNameSearch = '';
+let productSort = { sortBy: 'id', sortOrder: 'asc' };
 
 let isLoadingProducts = false;
 const PRODUCTS_PAGE_LIMIT = 10;
@@ -64,35 +66,23 @@ function showPurchaseConfirmation(data, cart) {
     document.body.appendChild(modal);
   }
 
-  const totalFinal = Number(data.total || 0);
-  const totalOriginal = Number(data.total_original || totalFinal);
-  const cupon = data.cupon_aplicado;
+  const pedido = data.pedido || {};
+  const totalFinal = Number(data.total ?? pedido.total ?? 0);
   const totalItems = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-  const orderCode = `ORD-${Date.now().toString().slice(-8)}`;
+  const orderCode = pedido.id ? `PED-${pedido.id}` : `PED-${Date.now().toString().slice(-8)}`;
 
   modal.innerHTML = `
     <div class="purchase-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-title">
       <div class="purchase-modal-icon"><i class="fa-solid fa-check"></i></div>
-      <h2 id="purchase-title">Compra confirmada</h2>
-      <p class="purchase-modal-copy">
-        Te enviaremos la información de la compra al email registrado. Si tenés WhatsApp asociado al teléfono, también podremos contactarte por ese medio.
-      </p>
+      <h2 id="purchase-title">Pedido creado</h2>
+      <p class="purchase-modal-copy">El pedido quedó registrado como pendiente.</p>
       <div class="purchase-summary">
         <div><span>Orden</span><strong>${orderCode}</strong></div>
         <div><span>Productos</span><strong>${totalItems}</strong></div>
         <div><span>Total</span><strong>$${totalFinal.toLocaleString('es-AR')}</strong></div>
-        ${
-          cupon
-            ? `<div><span>Cupón</span><strong>${escapeHtml(cupon.codigo)} (${Number(cupon.descuento)}% OFF)</strong></div>`
-            : ''
-        }
-        ${
-          totalOriginal > totalFinal
-            ? `<div><span>Ahorro</span><strong>$${(totalOriginal - totalFinal).toLocaleString('es-AR')}</strong></div>`
-            : ''
-        }
       </div>
       <div class="purchase-modal-actions">
+        <button type="button" class="btn-empty" id="purchase-view-orders">Ver mis pedidos</button>
         <button type="button" class="btn-buy" id="purchase-home">Ir al inicio</button>
         <button type="button" class="btn-empty" id="purchase-continue">Seguir comprando</button>
       </div>
@@ -101,6 +91,12 @@ function showPurchaseConfirmation(data, cart) {
 
   modal.classList.add('active');
   document.body.classList.add('modal-open');
+
+  document.getElementById('purchase-view-orders')?.addEventListener('click', () => {
+    modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    document.getElementById('orders-container')?.scrollIntoView({ behavior: 'smooth' });
+  });
 
   document.getElementById('purchase-home')?.addEventListener('click', () => {
     window.location.href = '/index.html';
@@ -141,7 +137,10 @@ function addToCart(producto) {
   const existingProduct = cart.find((item) => item.id === producto.id);
 
   if (existingProduct) {
+    existingProduct.stock = stock;
+    if (existingProduct.quantity > stock) existingProduct.quantity = stock;
     if (existingProduct.quantity >= stock) {
+      saveCart(cart);
       showNotification(`✕ No hay más stock de ${producto.name}`, 'error');
       return;
     }
@@ -244,22 +243,8 @@ function displayFilteredProducts(products) {
     const imagen = product.image || product.imagen || '/img/placeholder.png';
     const stock = Number(product.stock) || 0;
     const sinStock = stock <= 0;
-    const rating = Number(product.rating) || 4;
-    const reviews = product.reviews || 0;
     const nombreSeguro = escapeHtml(nombre);
     const imagenSegura = escapeHtml(imagen);
-
-    // Generar estrellas
-    let starsHTML = '';
-    for (let i = 1; i <= 5; i++) {
-      if (i <= rating) {
-        starsHTML += '<i class="fa-solid fa-star"></i>';
-      } else if (i - 0.5 <= rating) {
-        starsHTML += '<i class="fa-solid fa-star-half-alt"></i>';
-      } else {
-        starsHTML += '<i class="fa-regular fa-star"></i>';
-      }
-    }
 
     const card = document.createElement('div');
     card.className = `product-card ${sinStock ? 'out-of-stock' : ''}`;
@@ -268,7 +253,6 @@ function displayFilteredProducts(products) {
         <img src="${imagenSegura}" alt="${nombreSeguro}" onerror="this.src='/img/placeholder.png'">
       </div>
       <h3>${nombreSeguro}</h3>
-      <div class="rating">${starsHTML} <span>(${reviews})</span></div>
       <p class="price">$${precio.toLocaleString('es-AR')}</p>
       <div class="stock-info">
         ${sinStock ? '<span class="sin-stock">Sin stock</span>' : `<span class="con-stock">Stock: ${stock}</span>`}
@@ -277,11 +261,60 @@ function displayFilteredProducts(products) {
               data-price="${precio}" data-image="${imagenSegura}" data-stock="${stock}" ${sinStock ? 'disabled' : ''}>
         <i class="fa-solid fa-cart-plus"></i> ${sinStock ? 'Agotado' : 'Añadir'}
       </button>
+      <button type="button" class="btn-product-detail" data-product-id="${escapeHtml(product.id)}">Ver detalle</button>
     `;
     productsList.appendChild(card);
   });
 
   bindAddToCartButtons();
+  document.querySelectorAll('.btn-product-detail').forEach((button) => {
+    button.addEventListener('click', () => openProductDetail(button.dataset.productId));
+  });
+}
+
+async function openProductDetail(productId) {
+  try {
+    const response = await fetch(`/api/productos/${encodeURIComponent(productId)}`);
+    if (!response.ok) throw new Error('No se pudo cargar el producto');
+    const product = await response.json();
+    let modal = document.getElementById('product-detail-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'product-detail-modal';
+      modal.className = 'product-detail-overlay';
+      document.body.appendChild(modal);
+    }
+
+    const name = escapeHtml(product.name || product.nombre);
+    const image = escapeHtml(product.image || '/img/placeholder.png');
+    const description = escapeHtml(product.descripcion || 'Sin descripción disponible.');
+    const price = Number(product.price ?? product.precio ?? 0);
+    const stock = Number(product.stock) || 0;
+    modal.innerHTML = `
+      <section class="product-detail" role="dialog" aria-modal="true" aria-labelledby="product-detail-title">
+        <button type="button" class="product-detail-close" aria-label="Cerrar detalle">&times;</button>
+        <img src="${image}" alt="${name}" onerror="this.src='/img/placeholder.png'">
+        <div>
+          <p class="detail-category">${escapeHtml(product.categoria || 'Sin categoría')}</p>
+          <h2 id="product-detail-title">${name}</h2>
+          <p>${description}</p>
+          <p class="price">$${price.toLocaleString('es-AR')}</p>
+          <p>Stock disponible: ${stock}</p>
+          <button type="button" class="btn-add" data-id="${escapeHtml(product.id)}" data-name="${name}" data-price="${price}" data-image="${image}" data-stock="${stock}" ${stock <= 0 ? 'disabled' : ''}>Agregar al carrito</button>
+        </div>
+      </section>`;
+    modal.classList.add('active');
+    modal.querySelector('.product-detail-close').addEventListener('click', () => modal.classList.remove('active'));
+    modal.onclick = (event) => {
+      if (event.target === modal) modal.classList.remove('active');
+    };
+    modal.querySelector('.btn-add').addEventListener('click', (event) => {
+      handleAddToCart(event);
+      modal.classList.remove('active');
+    });
+  } catch (error) {
+    showNotification(error.message, 'error');
+  }
 }
 
 function renderProductsPagination(metadata) {
@@ -395,6 +428,9 @@ async function loadProductsPage(page = 1) {
     if (currentCategory !== 'all') {
       params.set('categoria', currentCategory);
     }
+    if (productNameSearch) params.set('nombre', productNameSearch);
+    params.set('sortBy', productSort.sortBy);
+    params.set('sortOrder', productSort.sortOrder);
 
     // Solo mostrar "Cargando" en la primera página
     if (currentProductsPage === 1) {
@@ -496,7 +532,12 @@ function renderCart() {
     const itemName = escapeHtml(item.name);
     const itemImage = escapeHtml(item.image || '../img/placeholder.png');
     const itemPrice = Number(item.price) || 0;
-    const itemQuantity = Number(item.quantity) || 0;
+    let itemQuantity = Number(item.quantity) || 1;
+    const availableStock = Number(item.stock);
+    if (Number.isInteger(availableStock) && availableStock > 0) {
+      itemQuantity = Math.min(itemQuantity, availableStock);
+      item.quantity = itemQuantity;
+    }
     const subtotal = itemPrice * itemQuantity;
     total += subtotal;
 
@@ -511,7 +552,7 @@ function renderCart() {
       <div class="item-controls">
         <button class="btn-qty" data-index="${index}" data-change="-1">-</button>
         <span>${itemQuantity}</span>
-        <button class="btn-qty" data-index="${index}" data-change="1">+</button>
+        <button class="btn-qty" data-index="${index}" data-change="1" ${itemQuantity >= availableStock ? 'disabled' : ''}>+</button>
         <p class="item-subtotal">$${subtotal.toLocaleString('es-AR')}</p>
       </div>
       <button class="btn-remove" data-index="${index}"><i class="fa-solid fa-trash"></i></button>
@@ -519,6 +560,8 @@ function renderCart() {
     container.appendChild(itemDiv);
   });
 
+  localStorage.setItem('cart', JSON.stringify(cart));
+  updateCartCount();
   document.getElementById('cart-total').textContent =
     `$${total.toLocaleString('es-AR')}`;
 
@@ -530,6 +573,10 @@ function renderCart() {
       let cart = getCart();
       if (cart[idx]) {
         const newQty = cart[idx].quantity + change;
+        if (change > 0 && newQty > Number(cart[idx].stock)) {
+          showNotification('No hay más stock disponible', 'error');
+          return;
+        }
         if (newQty <= 0) cart.splice(idx, 1);
         else cart[idx].quantity = newQty;
         saveCart(cart);
@@ -616,59 +663,105 @@ async function applyCoupon() {
   }
 }
 
-async function checkout() {
-  // Verificar si el usuario está logueado
+async function loadUserOrders() {
+  const container = document.getElementById('orders-container');
+  if (!container) return;
   const token = localStorage.getItem('token');
   if (!token) {
-    showNotification('Debes iniciar sesión para finalizar la compra', 'error');
-    alert('Por favor, inicia sesión para continuar con tu pago.');
-    window.location.href = './login.html'; // Redirige a la pantalla de login
-    return; // Frena la ejecución de la compra
-  }
-
-  const cart = getCart();
-  if (cart.length === 0) {
-    showNotification('Carrito vacío', 'error');
+    container.innerHTML = '<p>Iniciá sesión para consultar tus pedidos.</p>';
     return;
   }
 
-  let total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const cuponAplicado = sessionStorage.getItem('cuponAplicado') || null;
-  const checkoutButton = document.getElementById('btn-checkout');
+  try {
+    const response = await fetch('/api/pedidos', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.mensaje || 'No se pudieron cargar los pedidos');
+    if (!data.length) {
+      container.innerHTML = '<p>Todavía no tenés pedidos.</p>';
+      return;
+    }
 
+    container.innerHTML = data.map((order) => {
+      const items = (order.detalles || []).map((detail) =>
+        `<li>${escapeHtml(detail.nombreProducto)} x ${Number(detail.cantidad)}</li>`).join('');
+      const pending = String(order.estado).toLowerCase() === 'pendiente';
+      return `<article class="order-item">
+        <div><h3>Pedido #${Number(order.id)}</h3><p>${escapeHtml(order.fecha)} · ${escapeHtml(order.estado)}</p></div>
+        <ul>${items}</ul><strong>$${Number(order.total).toLocaleString('es-AR')}</strong>
+        ${pending ? `<button type="button" class="btn-cancel-order" data-order-id="${Number(order.id)}">Cancelar pedido</button>` : ''}
+      </article>`;
+    }).join('');
+    container.querySelectorAll('.btn-cancel-order').forEach((button) => {
+      button.addEventListener('click', () => cancelOrder(button.dataset.orderId));
+    });
+  } catch (error) {
+    container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function cancelOrder(orderId) {
+  if (!confirm(`¿Cancelar el pedido #${orderId}?`)) return;
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}/cancelar`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.mensaje || 'No se pudo cancelar el pedido');
+    showNotification(data.mensaje);
+    await loadUserOrders();
+  } catch (error) {
+    showNotification(error.message, 'error');
+  }
+}
+
+async function checkout() {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    showNotification('Iniciá sesión para crear un pedido', 'error');
+    window.location.href = '/html/login.html';
+    return;
+  }
+
+  const cart = getCart();
+  if (!cart.length) {
+    showNotification('El carrito está vacío', 'error');
+    return;
+  }
+
+  const checkoutButton = document.getElementById('btn-checkout');
   if (checkoutButton) {
     checkoutButton.disabled = true;
-    checkoutButton.textContent = 'Procesando...';
+    checkoutButton.textContent = 'Creando pedido...';
   }
 
   try {
-    const response = await fetch('/api/checkout', {
+    const response = await fetch('/api/pedidos', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ carrito: cart, total, cupon_aplicado: cuponAplicado }),
+      body: JSON.stringify({
+        productos: cart.map((item) => ({ productoId: Number(item.id), cantidad: Number(item.quantity) })),
+      }),
     });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.mensaje || 'No se pudo crear el pedido');
 
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.mensaje || data.message || 'Error en checkout');
-    }
-
-    clearAppliedCoupon();
     saveCart([]);
     renderCart();
+    await loadUserOrders();
     showPurchaseConfirmation(data, cart);
   } catch (error) {
-    const message = error.message || 'Error al procesar compra';
-    showNotification(message, 'error');
-    alert(message);
+    showNotification(error.message, 'error');
   } finally {
     if (checkoutButton) {
       checkoutButton.disabled = false;
-      checkoutButton.textContent = 'Finalizar Pago';
+      checkoutButton.textContent = 'Crear pedido';
     }
   }
 }
@@ -1069,6 +1162,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Cargar productos según la página
   if (document.getElementById('products-list')) {
+    const productControls = document.getElementById('product-controls');
+    productControls?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      productNameSearch = document.getElementById('product-search')?.value.trim() || '';
+      const [sortBy, sortOrder] = (document.getElementById('product-sort')?.value || 'id-asc').split('-');
+      productSort = { sortBy, sortOrder };
+      loadProductsPage(1);
+    });
     loadProductCategories().finally(() => loadProductsPage());
   }
 
@@ -1078,6 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (document.getElementById('cart-items')) {
     renderCart();
+    loadUserOrders();
   }
 
   if (

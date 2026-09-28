@@ -4,6 +4,30 @@ Proyecto grupal desarrollado para la materia **Prácticas Profesionalizantes 2**
 
 EcommerceApp2 es una aplicación web de tienda online construida con **Node.js**, **Express**, **Sequelize** y **SQLite**. El backend expone una **API REST** organizada con patrón **MVC**, sirve el frontend estático y aplica seguridad con **JWT**, roles de usuario y contraseñas hasheadas con **bcryptjs**.
 
+## Demo Sprint 1
+
+Esta rama prepara una demostración acotada al primer sprint. La interfaz visible incluye catálogo y detalle de productos, búsqueda por nombre, filtro por categoría, orden por precio o nombre, alta y modificación de productos desde el panel admin, carrito local con control de stock, creación de pedidos y cancelación de pedidos pendientes.
+
+Para la demo se ocultan de la interfaz el registro, clientes/usuarios, cupones/descuentos, exportaciones, eliminación de productos, contacto, newsletter, promociones, tickets/facturación y reseñas/calificaciones. Sus rutas, modelos y datos permanecen en el repositorio. El campo opcional `descripcion` se agrega al modelo de productos para presentar el detalle; los productos existentes sin descripción muestran un texto alternativo.
+
+Los pedidos nuevos guardan una marca `demo-user:<id>:<email>` en el campo existente `Pedido.cliente`. Las consultas y cancelaciones de clientes se limitan a esa marca; los administradores conservan acceso a todos. Los pedidos antiguos sin esa marca no se muestran a clientes. La cancelación solo acepta pedidos pendientes, conserva pedido y detalles, y repone el stock en una transacción.
+
+### Inicio rápido
+
+Tecnologías: Node.js, Express, Sequelize, SQLite, API REST, HTML, CSS, JavaScript y JWT.
+
+```bash
+npm install
+```
+
+Copiar `.env.example` como `.env` y configurar `JWT_SECRET` con un valor local propio. Luego iniciar:
+
+```bash
+npm start
+```
+
+Abrir `http://localhost:3000`. El inicio sincroniza los modelos con SQLite mediante el `sequelize.sync({ alter: true })` existente. El panel admin y la creación de pedidos requieren inicio de sesión. Para una instalación nueva, cargar productos con `npm run seed` y crear usuarios de prueba con `npm run seed:users`; las credenciales de prueba documentadas más abajo solo aplican si se ejecuta ese seed.
+
 ---
 
 ## Tecnologías utilizadas
