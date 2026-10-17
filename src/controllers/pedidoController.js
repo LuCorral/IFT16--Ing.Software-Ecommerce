@@ -2,6 +2,9 @@ const Pedido = require('../models/Pedido');
 const DetallePedido = require('../models/DetallePedido');
 const Producto = require('../models/Producto');
 const Cupon = require('../models/Cupon');
+const Pago = require('../models/Pago');
+const Ticket = require('../models/Ticket');
+const User = require('../models/User');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
@@ -115,6 +118,9 @@ const pedidoController = {
           fecha: new Date().toISOString().split('T')[0],
           estado: 'Pendiente',
           total,
+          subtotal,
+          descuento,
+          cuponCodigo: cupon?.codigo || null,
         }, { transaction });
 
         for (const linea of lineas) {
@@ -149,9 +155,6 @@ const pedidoController = {
           }
         }
 
-        pedido.setDataValue('subtotal', subtotal);
-        pedido.setDataValue('descuento', descuento);
-        pedido.setDataValue('cupon', cupon?.codigo || null);
         return pedido;
       });
 
@@ -162,7 +165,7 @@ const pedidoController = {
         detalles,
         subtotal: pedidoCreado.getDataValue('subtotal'),
         descuento: pedidoCreado.getDataValue('descuento'),
-        cupon: pedidoCreado.getDataValue('cupon'),
+        cupon: pedidoCreado.cuponCodigo,
         total: pedidoCreado.total,
       });
     } catch (error) {
@@ -225,6 +228,148 @@ const pedidoController = {
     }
   },
 
+  pay: async (req, res) => {
+    const { metodo, resultadoSimulado = 'aprobado' } = req.body || {};
+    const metodosValidos = ['tarjeta', 'transferencia'];
+    const resultadosValidos = ['aprobado', 'rechazado'];
+
+    if (req.user.role !== 'client') {
+      return res.status(403).json({ mensaje: 'Solo los clientes pueden pagar pedidos' });
+    }
+    if (!metodosValidos.includes(String(metodo).toLowerCase())) {
+      return res.status(400).json({ mensaje: 'Elegí Tarjeta o Transferencia como método de pago' });
+    }
+    if (!resultadosValidos.includes(String(resultadoSimulado).toLowerCase())) {
+      return res.status(400).json({ mensaje: 'Resultado simulado inválido' });
+    }
+
+    try {
+      const result = await sequelize.transaction(async (transaction) => {
+        const pedido = await Pedido.findByPk(req.params.id, { transaction });
+        if (!pedido || !canAccessOrder(req.user, pedido)) {
+          const error = new Error('Pedido no encontrado');
+          error.status = 404;
+          throw error;
+        }
+        if (pedido.estado !== 'Pendiente') {
+          const error = new Error('Solo se pueden pagar pedidos pendientes');
+          error.status = 400;
+          throw error;
+        }
+
+        const aprobado = String(resultadoSimulado).toLowerCase() === 'aprobado';
+        const estadoPago = aprobado ? 'Aprobado' : 'Rechazado';
+        const metodoPago = String(metodo).toLowerCase() === 'tarjeta' ? 'Tarjeta' : 'Transferencia';
+        const pago = await Pago.create({
+          pedidoId: pedido.id,
+          metodo: metodoPago,
+          monto: pedido.total,
+          estado: estadoPago,
+          fecha: new Date(),
+        }, { transaction });
+
+        let comprobante = null;
+        if (aprobado) {
+          const [updated] = await Pedido.update(
+            { estado: 'Pagado' },
+            { where: { id: pedido.id, estado: 'Pendiente' }, transaction },
+          );
+          if (!updated) {
+            const error = new Error('El pedido ya no está pendiente de pago');
+            error.status = 400;
+            throw error;
+          }
+
+          const user = await User.findByPk(req.user.id, { transaction });
+          if (!user) {
+            const error = new Error('No se encontró el cliente asociado a la sesión');
+            error.status = 401;
+            throw error;
+          }
+          const detalles = await DetallePedido.findAll({
+            where: { pedidoId: pedido.id },
+            transaction,
+          });
+          const receiptSubtotal = Number(pedido.subtotal) || roundMoney(
+            detalles.reduce((sum, detalle) => sum + Number(detalle.subtotal), 0),
+          );
+          const receiptDiscount = Number(pedido.descuento) || roundMoney(
+            Math.max(0, receiptSubtotal - Number(pedido.total)),
+          );
+          comprobante = await Ticket.create({
+            id_pedido: pedido.id,
+            fecha_emision: new Date(),
+            tipo_factura: 'Comprobante no fiscal',
+            total: pedido.total,
+            CAE: null,
+            subtotal: receiptSubtotal,
+            descuento: receiptDiscount,
+            cuponCodigo: pedido.cuponCodigo,
+            cliente: [user.name, user.apellido, user.email].filter(Boolean).join(' '),
+            detalles: JSON.stringify(detalles.map((detalle) => ({
+              nombreProducto: detalle.nombreProducto,
+              cantidad: detalle.cantidad,
+              precioUnitario: detalle.precioUnitario,
+              subtotal: detalle.subtotal,
+            }))),
+            metodo_pago: metodoPago,
+            estado_pago: estadoPago,
+          }, { transaction });
+        }
+
+        return { pago, comprobante, estadoPedido: aprobado ? 'Pagado' : 'Pendiente' };
+      });
+
+      res.status(200).json({
+        mensaje: result.pago.estado === 'Aprobado' ? 'Pago aprobado' : 'Pago rechazado; el pedido continúa pendiente',
+        pago: result.pago,
+        estadoPedido: result.estadoPedido,
+        comprobante: result.comprobante
+          ? { id: result.comprobante.id, numero: `COMP-${String(result.comprobante.id).padStart(8, '0')}` }
+          : null,
+      });
+    } catch (error) {
+      res.status(error.status || 500).json({
+        mensaje: error.status ? error.message : 'Error al procesar el pago simulado',
+        error: error.message,
+      });
+    }
+  },
+
+  getReceipt: async (req, res) => {
+    try {
+      const pedido = await Pedido.findByPk(req.params.id);
+      if (!pedido || !canAccessOrder(req.user, pedido)) {
+        return res.status(404).json({ mensaje: 'Comprobante no encontrado' });
+      }
+      if (pedido.estado !== 'Pagado') {
+        return res.status(404).json({ mensaje: 'El pedido todavía no tiene comprobante pagado' });
+      }
+
+      const comprobante = await Ticket.findOne({ where: { id_pedido: pedido.id } });
+      if (!comprobante || comprobante.estado_pago !== 'Aprobado') {
+        return res.status(404).json({ mensaje: 'Comprobante no encontrado' });
+      }
+
+      res.json({
+        id: comprobante.id,
+        numero: `COMP-${String(comprobante.id).padStart(8, '0')}`,
+        pedidoId: pedido.id,
+        fecha: comprobante.fecha_emision,
+        cliente: comprobante.cliente,
+        productos: JSON.parse(comprobante.detalles),
+        subtotal: comprobante.subtotal,
+        descuento: comprobante.descuento,
+        cupon: comprobante.cuponCodigo,
+        total: comprobante.total,
+        metodoPago: comprobante.metodo_pago,
+        estadoPago: comprobante.estado_pago,
+      });
+    } catch (error) {
+      res.status(500).json({ mensaje: 'Error al consultar el comprobante', error: error.message });
+    }
+  },
+
   update: async (req, res) => {
     try {
       const pedido = await Pedido.findByPk(req.params.id);
@@ -233,14 +378,18 @@ const pedidoController = {
         return res.status(404).json({ mensaje: 'Pedido no encontrado' });
       }
 
-      if (String(req.body.estado || '').toLowerCase() === 'cancelado') {
-        return res.status(400).json({ mensaje: 'Usá la acción explícita de cancelación para restituir el stock' });
+      const transiciones = {
+        Pagado: 'Enviado',
+        Enviado: 'Entregado',
+      };
+      const siguienteEstado = transiciones[pedido.estado];
+      if (!siguienteEstado || req.body.estado !== siguienteEstado) {
+        return res.status(400).json({
+          mensaje: `Transición de estado no permitida desde ${pedido.estado}`,
+        });
       }
 
-      await pedido.update({
-        cliente: req.body.cliente || pedido.cliente,
-        estado: req.body.estado || pedido.estado
-      });
+      await pedido.update({ estado: siguienteEstado });
 
       res.json({
         mensaje: 'Pedido actualizado correctamente',

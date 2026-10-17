@@ -725,6 +725,7 @@ async function loadUserOrders() {
       const orderId = Number(order.id);
       const status = String(order.estado || '');
       const isPending = status.toLowerCase() === 'pendiente';
+      const isClient = localStorage.getItem('userRole') === 'client';
       const items = (order.detalles || []).map((detail) => `
         <li>
           <span>${escapeHtml(detail.nombreProducto)} x ${Number(detail.cantidad)}</span>
@@ -740,15 +741,116 @@ async function loadUserOrders() {
         <ul>${items}</ul>
         <div class="order-summary">
           <strong>Total: $${Number(order.total).toLocaleString('es-AR')}</strong>
+          ${isPending && isClient ? `<div class="order-payment-actions">
+            <label>Método
+              <select data-payment-method="${orderId}">
+                <option value="tarjeta">Tarjeta</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </label>
+            <label><input type="checkbox" data-payment-rejection="${orderId}"> Simular rechazo</label>
+            <button type="button" class="btn-pay-order" data-pay-order="${orderId}">Pagar</button>
+          </div>` : ''}
+          ${status.toLowerCase() === 'pagado' ? `<button type="button" class="btn-receipt" data-receipt-order="${orderId}">Ver comprobante</button>` : ''}
           ${isPending ? `<button type="button" class="btn-cancel-order" data-cancel-order="${orderId}">Cancelar pedido</button>` : ''}
         </div>
       </article>`;
     }).join('');
+    container.querySelectorAll('[data-pay-order]').forEach((button) => {
+      button.addEventListener('click', () => payOrder(button.dataset.payOrder, button));
+    });
+    container.querySelectorAll('[data-receipt-order]').forEach((button) => {
+      button.addEventListener('click', () => viewReceipt(button.dataset.receiptOrder));
+    });
     container.querySelectorAll('[data-cancel-order]').forEach((button) => {
       button.addEventListener('click', () => cancelOrder(button.dataset.cancelOrder, button));
     });
   } catch (error) {
     container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function payOrder(orderId, button) {
+  const safeOrderId = Number(orderId);
+  const method = document.querySelector(`[data-payment-method="${safeOrderId}"]`)?.value;
+  const simulateRejection = document.querySelector(`[data-payment-rejection="${safeOrderId}"]`)?.checked;
+  const token = localStorage.getItem('token');
+  if (!token) {
+    showNotification('Iniciá sesión para pagar pedidos', 'error');
+    return;
+  }
+  if (button) button.disabled = true;
+
+  try {
+    const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}/pagar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        metodo: method,
+        resultadoSimulado: simulateRejection ? 'rechazado' : 'aprobado',
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.mensaje || 'No se pudo procesar el pago');
+    showNotification(data.mensaje, data.pago.estado === 'Rechazado' ? 'error' : 'success');
+    await loadUserOrders();
+  } catch (error) {
+    showNotification(error.message, 'error');
+  } finally {
+    if (button?.isConnected) button.disabled = false;
+  }
+}
+
+async function viewReceipt(orderId) {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    showNotification('Iniciá sesión para consultar el comprobante', 'error');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}/comprobante`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const receipt = await response.json();
+    if (!response.ok) throw new Error(receipt.mensaje || 'No se pudo cargar el comprobante');
+
+    const rows = receipt.productos.map((item) => `
+      <tr>
+        <td>${escapeHtml(item.nombreProducto)}</td>
+        <td>${Number(item.cantidad)}</td>
+        <td>$${Number(item.precioUnitario).toLocaleString('es-AR')}</td>
+        <td>$${Number(item.subtotal).toLocaleString('es-AR')}</td>
+      </tr>
+    `).join('');
+    const modal = document.createElement('div');
+    modal.className = 'receipt-modal-overlay';
+    modal.innerHTML = `
+      <section class="receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
+        <button type="button" class="receipt-close" aria-label="Cerrar">&times;</button>
+        <h2 id="receipt-title">Comprobante ${escapeHtml(receipt.numero)}</h2>
+        <p>Pedido #${Number(receipt.pedidoId)} · ${escapeHtml(new Date(receipt.fecha).toLocaleDateString('es-AR'))}</p>
+        <p>Cliente: ${escapeHtml(receipt.cliente)}</p>
+        <table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+        <p>Subtotal: $${Number(receipt.subtotal).toLocaleString('es-AR')}</p>
+        <p>Descuento: -$${Number(receipt.descuento).toLocaleString('es-AR')}${receipt.cupon ? ` (${escapeHtml(receipt.cupon)})` : ''}</p>
+        <p><strong>Total pagado: $${Number(receipt.total).toLocaleString('es-AR')}</strong></p>
+        <p>Método: ${escapeHtml(receipt.metodoPago)} · Pago: ${escapeHtml(receipt.estadoPago)}</p>
+        <button type="button" class="btn-buy receipt-print">Imprimir comprobante</button>
+      </section>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector('.receipt-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) modal.remove();
+    });
+    modal.querySelector('.receipt-print').addEventListener('click', () => window.print());
+  } catch (error) {
+    showNotification(error.message, 'error');
   }
 }
 

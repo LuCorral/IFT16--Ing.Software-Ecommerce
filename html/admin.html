@@ -942,9 +942,9 @@
                         </button>
                     </li>
                     <li>
-                        <a class="sidebar-link" href="/cart.html#orders-section">
+                        <button class="sidebar-link" id="nav-orders" onclick="switchAdminView('orders')">
                             <i class="fa-solid fa-receipt"></i> Gestión de pedidos
-                        </a>
+                        </button>
                     </li>
                     <li class="sidebar-separator"></li>
                     <li>
@@ -1056,6 +1056,16 @@
                     </div>
                 </div>
             </section>
+
+            <section id="admin-orders" class="admin-section" hidden>
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-receipt"></i> Gestión de pedidos</h2>
+                    <button type="button" class="btn-filter-secondary" onclick="loadAdminOrders()">Actualizar</button>
+                </div>
+                <div class="admin-card" id="admin-orders-container">
+                    <div class="loading-spinner"><p>Cargando pedidos...</p></div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -1077,7 +1087,7 @@
     <!-- Notificación flotante -->
     <div id="notification" class="notification"></div>
 
-    <script src="../js/main.js?v=admin-coupons"></script>
+    <script src="../js/main.js?v=admin-orders"></script>
     
     <script>
         (() => {
@@ -2354,21 +2364,87 @@
             
             // ========== FUNCIONES GENERALES ==========
             
+            async function loadAdminOrders() {
+                const container = document.getElementById('admin-orders-container');
+                if (!container) return;
+                container.innerHTML = '<div class="loading-spinner"><p>Cargando pedidos...</p></div>';
+
+                try {
+                    const response = await fetch('/api/pedidos', {
+                        headers: getAuthHeaders(),
+                        cache: 'no-store'
+                    });
+                    if (!response.ok) {
+                        throw new Error(await getErrorMessage(response, 'No se pudieron cargar los pedidos'));
+                    }
+                    const orders = await response.json();
+                    if (!orders.length) {
+                        container.innerHTML = '<p>No hay pedidos registrados.</p>';
+                        return;
+                    }
+
+                    container.innerHTML = `
+                        <div class="admin-table-container">
+                            <table class="admin-table">
+                                <thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th>Acción</th></tr></thead>
+                                <tbody>${orders.map((order) => {
+                                    const nextState = order.estado === 'Pagado' ? 'Enviado' : order.estado === 'Enviado' ? 'Entregado' : null;
+                                    return `<tr>
+                                        <td>#${Number(order.id)}</td>
+                                        <td>${escapeHtml(order.cliente)}</td>
+                                        <td>${escapeHtml(order.fecha)}</td>
+                                        <td>$${Number(order.total).toLocaleString('es-AR')}</td>
+                                        <td>${escapeHtml(order.estado)}</td>
+                                        <td>${nextState ? `<button class="btn-filter-primary" type="button" data-next-state="${escapeHtml(nextState)}" data-order-id="${Number(order.id)}">${escapeHtml(nextState)}</button>` : '—'}</td>
+                                    </tr>`;
+                                }).join('')}</tbody>
+                            </table>
+                        </div>`;
+                    container.querySelectorAll('[data-next-state]').forEach((button) => {
+                        button.addEventListener('click', () => updateAdminOrderState(button.dataset.orderId, button.dataset.nextState));
+                    });
+                } catch (error) {
+                    container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
+                }
+            }
+
+            async function updateAdminOrderState(orderId, estado) {
+                try {
+                    const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}`, {
+                        method: 'PUT',
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ estado })
+                    });
+                    if (!response.ok) {
+                        throw new Error(await getErrorMessage(response, 'No se pudo actualizar el estado'));
+                    }
+                    showNotification(`Pedido actualizado a ${estado}`);
+                    await loadAdminOrders();
+                } catch (error) {
+                    showNotification(error.message, 'error');
+                }
+            }
+
             function switchAdminView(view) {
                 const productsSec = document.getElementById('admin-products');
                 const customersSec = document.getElementById('admin-customers');
                 const couponsSec = document.getElementById('admin-coupons');
+                const ordersSec = document.getElementById('admin-orders');
                 const prodBtn = document.getElementById('nav-prod');
                 const custBtn = document.getElementById('nav-cust');
                 const coupBtn = document.getElementById('nav-coup');
+                const ordersBtn = document.getElementById('nav-orders');
 
-                productsSec.classList.toggle('active', view === 'products');
-                customersSec.classList.toggle('active', view === 'customers');
-                couponsSec.classList.toggle('active', view === 'coupons');
+                [[productsSec, 'products'], [customersSec, 'customers'], [couponsSec, 'coupons'], [ordersSec, 'orders']]
+                    .forEach(([section, name]) => {
+                        if (!section) return;
+                        const active = view === name;
+                        section.hidden = !active;
+                        section.classList.toggle('active', active);
+                    });
 
-                prodBtn.classList.toggle('active', view === 'products');
-                custBtn.classList.toggle('active', view === 'customers');
-                coupBtn.classList.toggle('active', view === 'coupons');
+                [[prodBtn, 'products'], [custBtn, 'customers'], [coupBtn, 'coupons'], [ordersBtn, 'orders']]
+                    .forEach(([button, name]) => button?.classList.toggle('active', view === name));
 
                 if (view === 'products') {
                     loadProducts();
@@ -2376,6 +2452,8 @@
                     loadCustomers();
                 } else if (view === 'coupons') {
                     loadCoupons();
+                } else if (view === 'orders') {
+                    loadAdminOrders();
                 }
             }
             
@@ -2438,6 +2516,7 @@
             
             // Exponer funciones globalmente
             window.switchAdminView = switchAdminView;
+            window.loadAdminOrders = loadAdminOrders;
             window.openProductModal = () => openProductModal();
             window.openCustomerModal = openCustomerModal;
             window.openCouponModal = openCouponModal;
