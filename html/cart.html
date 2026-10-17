@@ -39,7 +39,17 @@
             <div id="cart-items">
             </div>
             <div class="cart-summary">
-                <p>Total: <span id="cart-total">$0</span></p>
+                <div class="coupon-section">
+                    <label for="coupon-code">Código de cupón</label>
+                    <input type="text" id="coupon-code" autocomplete="off" placeholder="Ingresá tu código">
+                    <button type="button" class="btn-secondary" id="btn-apply-coupon">Aplicar</button>
+                    <p id="coupon-message" class="coupon-message" role="status" aria-live="polite"></p>
+                </div>
+                <div class="cart-totals" aria-live="polite">
+                    <p>Subtotal: <span id="cart-subtotal">$0</span></p>
+                    <p>Descuento: <span id="cart-discount">-$0</span></p>
+                    <p class="cart-final-total">Total final: <span id="cart-total">$0</span></p>
+                </div>
                 <button id="btn-checkout" class="btn-buy">Crear pedido</button>
                 <button id="btn-empty" class="btn-empty">Vaciar Carrito</button>
             </div>

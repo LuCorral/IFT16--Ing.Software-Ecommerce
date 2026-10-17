@@ -1,9 +1,12 @@
 const Pedido = require('../models/Pedido');
 const DetallePedido = require('../models/DetallePedido');
 const Producto = require('../models/Producto');
+const Cupon = require('../models/Cupon');
+const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
 const getOwnerTag = (user) => `demo-user:${user.id}:${user.email}`;
+const roundMoney = (amount) => Math.round((amount + Number.EPSILON) * 100) / 100;
 const canAccessOrder = (user, pedido) =>
   user.role === 'admin' || pedido.cliente === getOwnerTag(user);
 
@@ -55,6 +58,13 @@ const pedidoController = {
         return res.status(400).json({ mensaje: 'El pedido debe incluir productos válidos' });
       }
 
+      const couponCode = typeof req.body.cupon === 'string'
+        ? req.body.cupon.trim().toUpperCase()
+        : '';
+      if (req.body.cupon !== undefined && typeof req.body.cupon !== 'string') {
+        return res.status(400).json({ mensaje: 'El código del cupón debe ser texto' });
+      }
+
       const cantidades = new Map();
       for (const item of req.body.productos) {
         const productoId = Number(item.productoId);
@@ -67,7 +77,7 @@ const pedidoController = {
 
       const pedidoCreado = await sequelize.transaction(async (transaction) => {
         const lineas = [];
-        let total = 0;
+        let subtotal = 0;
         for (const [productoId, cantidad] of cantidades) {
           const producto = await Producto.findByPk(productoId, { transaction });
           if (!producto) {
@@ -81,10 +91,25 @@ const pedidoController = {
             throw error;
           }
           const subtotal = producto.precio * cantidad;
-          total += subtotal;
           lineas.push({ producto, cantidad, subtotal });
         }
 
+        subtotal = roundMoney(lineas.reduce((sum, linea) => sum + linea.subtotal, 0));
+        let cupon = null;
+        let descuento = 0;
+        if (couponCode) {
+          cupon = await Cupon.findOne({
+            where: { codigo: couponCode },
+            transaction,
+          });
+          if (!cupon || !cupon.esValido()) {
+            const error = new Error('El cupón no existe, está vencido, inactivo o agotado');
+            error.status = 400;
+            throw error;
+          }
+          descuento = roundMoney(subtotal - cupon.aplicarDescuento(subtotal));
+        }
+        const total = roundMoney(subtotal - descuento);
         const pedido = await Pedido.create({
           cliente: getOwnerTag(req.user),
           fecha: new Date().toISOString().split('T')[0],
@@ -103,11 +128,43 @@ const pedidoController = {
           }, { transaction });
           await linea.producto.update({ stock: linea.producto.stock - linea.cantidad }, { transaction });
         }
+
+        if (cupon) {
+          const [usageUpdated] = await Cupon.update(
+            { usos_actuales: sequelize.literal('"usos_actuales" + 1') },
+            {
+              where: {
+                id: cupon.id,
+                activo: true,
+                fecha_vencimiento: { [Op.gte]: new Date().toISOString().split('T')[0] },
+                usos_actuales: { [Op.lt]: sequelize.col('limite_stock') },
+              },
+              transaction,
+            },
+          );
+          if (!usageUpdated) {
+            const error = new Error('El cupón ya no tiene usos disponibles');
+            error.status = 400;
+            throw error;
+          }
+        }
+
+        pedido.setDataValue('subtotal', subtotal);
+        pedido.setDataValue('descuento', descuento);
+        pedido.setDataValue('cupon', cupon?.codigo || null);
         return pedido;
       });
 
       const detalles = await DetallePedido.findAll({ where: { pedidoId: pedidoCreado.id } });
-      res.status(201).json({ mensaje: 'Pedido creado correctamente', pedido: pedidoCreado, detalles });
+      res.status(201).json({
+        mensaje: 'Pedido creado correctamente',
+        pedido: pedidoCreado,
+        detalles,
+        subtotal: pedidoCreado.getDataValue('subtotal'),
+        descuento: pedidoCreado.getDataValue('descuento'),
+        cupon: pedidoCreado.getDataValue('cupon'),
+        total: pedidoCreado.total,
+      });
     } catch (error) {
       res.status(error.status || 500).json({ mensaje: error.status ? error.message : 'Error al crear el pedido', error: error.message });
     }
