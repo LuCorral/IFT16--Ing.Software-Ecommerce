@@ -86,7 +86,7 @@ const pedidoController = {
         }
 
         const pedido = await Pedido.create({
-          cliente: req.user?.id ? getOwnerTag(req.user) : 'Compra de demostración',
+          cliente: getOwnerTag(req.user),
           fecha: new Date().toISOString().split('T')[0],
           estado: 'Pendiente',
           total,
@@ -133,14 +133,33 @@ const pedidoController = {
           throw error;
         }
 
+        const [actualizado] = await Pedido.update(
+          { estado: 'Cancelado' },
+          {
+            where: {
+              id: pedidoActual.id,
+              estado: pedidoActual.estado,
+            },
+            transaction,
+          },
+        );
+        if (!actualizado) {
+          const error = new Error('Solo se pueden cancelar pedidos pendientes');
+          error.status = 400;
+          throw error;
+        }
+
         const detalles = await DetallePedido.findAll({ where: { pedidoId: pedidoActual.id }, transaction });
         for (const detalle of detalles) {
           const producto = await Producto.findByPk(detalle.productoId, { transaction });
-          if (producto) {
-            await producto.update({ stock: producto.stock + detalle.cantidad }, { transaction });
+          if (!producto) {
+            const error = new Error(`No se pudo restituir el stock del producto ${detalle.productoId}`);
+            error.status = 409;
+            throw error;
           }
+          await producto.update({ stock: producto.stock + detalle.cantidad }, { transaction });
         }
-        await pedidoActual.update({ estado: 'Cancelado' }, { transaction });
+        pedidoActual.estado = 'Cancelado';
         return pedidoActual;
       });
       res.json({ mensaje: 'Pedido cancelado y stock restituido', pedido });

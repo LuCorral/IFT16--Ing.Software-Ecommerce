@@ -766,6 +766,12 @@ async function checkout() {
     return;
   }
 
+  const token = localStorage.getItem('token');
+  if (!token) {
+    window.location.href = '/login.html?reason=checkout&returnTo=%2Fhtml%2Fcart.html';
+    return;
+  }
+
   const checkoutButton = document.getElementById('btn-checkout');
   if (checkoutButton) {
     checkoutButton.disabled = true;
@@ -773,18 +779,22 @@ async function checkout() {
   }
 
   try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(token ? '/api/pedidos' : '/api/pedidos/demo', {
+    const response = await fetch('/api/pedidos', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         productos: cart.map((item) => ({ productoId: Number(item.id), cantidad: Number(item.quantity) })),
       }),
     });
     const data = await response.json();
+    if (response.status === 401 || response.status === 403) {
+      clearUserSession();
+      window.location.href = '/login.html?reason=checkout&returnTo=%2Fhtml%2Fcart.html';
+      return;
+    }
     if (!response.ok) throw new Error(data.mensaje || 'No se pudo crear el pedido');
 
     saveCart([]);
@@ -863,7 +873,10 @@ function initAuthForms() {
         showNotification('¡Bienvenido!');
 
         setTimeout(() => {
-          if (data.user.role === 'admin') {
+          const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+          if (returnTo === '/html/cart.html') {
+            window.location.href = returnTo;
+          } else if (data.user.role === 'admin') {
             window.location.href = '/admin.html';
           } else {
             window.location.href = '/index.html';
@@ -1199,6 +1212,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inicializar formularios de auth
   initAuthForms();
+  if (new URLSearchParams(window.location.search).get('reason') === 'checkout') {
+    showNotification('Iniciá sesión para confirmar tu pedido. Tu carrito se conservó.');
+  }
 
   // Botones del carrito
   const btnEmpty = document.getElementById('btn-empty');
