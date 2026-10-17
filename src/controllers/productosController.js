@@ -5,6 +5,29 @@ const {
   buildPaginatedResponse,
 } = require("../utils/pagination");
 
+function validateProductData(body, includeOptionalDefaults = false) {
+  const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
+  const categoria = typeof body.categoria === "string" ? body.categoria.trim() : "";
+  const precio = body.precio === "" || body.precio === null ? NaN : Number(body.precio);
+  const stock = body.stock === "" || body.stock === null ? NaN : Number(body.stock);
+
+  if (!nombre || !categoria || !Number.isFinite(precio) || precio < 0 || !Number.isInteger(stock) || stock < 0) {
+    return {
+      error: "Ingresá nombre y categoría, un precio válido no negativo y un stock entero no negativo.",
+    };
+  }
+
+  const data = { nombre, categoria, precio, stock };
+  if (includeOptionalDefaults || body.descripcion !== undefined) {
+    data.descripcion = String(body.descripcion ?? "").trim();
+  }
+  if (includeOptionalDefaults || body.image !== undefined) {
+    data.image = String(body.image ?? "").trim() || null;
+  }
+
+  return { data };
+}
+
 const productosController = {
   getAll: async (req, res) => {
     try {
@@ -104,7 +127,12 @@ const productosController = {
 
   create: async (req, res) => {
     try {
-      const nuevoProducto = await Producto.create(req.body);
+      const validated = validateProductData(req.body, true);
+      if (validated.error) {
+        return res.status(400).json({ error: validated.error });
+      }
+
+      const nuevoProducto = await Producto.create(validated.data);
 
       res.status(201).json({
         mensaje: "Producto creado con éxito",
@@ -122,17 +150,19 @@ const productosController = {
 
   update: async (req, res) => {
     try {
-      const [actualizado] = await Producto.update(req.body, {
-        where: { id: req.params.id },
-      });
+      const validated = validateProductData(req.body);
+      if (validated.error) {
+        return res.status(400).json({ error: validated.error });
+      }
 
-      if (!actualizado) {
+      const producto = await Producto.findByPk(req.params.id);
+      if (!producto) {
         return res.status(404).json({
           error: "No se encontró el producto a actualizar",
         });
       }
 
-      const productoActualizado = await Producto.findByPk(req.params.id);
+      const productoActualizado = await producto.update(validated.data);
 
       res.json({
         mensaje: "Producto actualizado correctamente",
