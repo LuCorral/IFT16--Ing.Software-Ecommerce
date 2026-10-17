@@ -30,14 +30,13 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-app.get('/html/admin.html', (req, res) => res.redirect('/'));
-app.get('/html/login.html', (req, res) => res.redirect('/'));
 app.get('/html/contacto.html', (req, res) => res.redirect('/'));
 
 // Servir solo assets públicos. No exponer .env, SQLite, package.json ni scripts internos.
 app.use('/css', express.static(path.join(__dirname, 'css')));
 app.use('/js', express.static(path.join(__dirname, 'js')));
 app.use('/img', express.static(path.join(__dirname, 'img')));
+app.get('/html/admin.html', (req, res) => res.redirect('/admin.html'));
 app.use('/html', express.static(path.join(__dirname, 'html')));
 
 // Redirecciones para páginas
@@ -50,7 +49,7 @@ app.get('/index.html', (req, res) => {
 });
 
 app.get('/admin.html', (req, res) => {
-  res.redirect('/');
+  res.sendFile(path.join(__dirname, 'html', 'admin.html'));
 });
 
 app.get('/productos.html', (req, res) => {
@@ -62,7 +61,7 @@ app.get('/cart.html', (req, res) => {
 });
 
 app.get('/login.html', (req, res) => {
-  res.redirect('/');
+  res.sendFile(path.join(__dirname, 'html', 'login.html'));
 });
 
 app.get('/contacto.html', (req, res) => {

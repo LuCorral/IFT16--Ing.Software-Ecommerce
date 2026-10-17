@@ -6,6 +6,7 @@ let currentProductsPage = 1;
 let productsPagination = null;
 let productNameSearch = '';
 let productRequestId = 0;
+let productSort = '';
 
 let isLoadingProducts = false;
 const PRODUCTS_PAGE_LIMIT = 10;
@@ -438,6 +439,11 @@ async function loadProductsPage(page = 1) {
       params.set('categoria', currentCategory);
     }
     if (productNameSearch) params.set('nombre', productNameSearch);
+    if (productSort) {
+      const [sortBy, sortOrder] = productSort.split(':');
+      params.set('sortBy', sortBy);
+      params.set('sortOrder', sortOrder);
+    }
 
     // Solo mostrar "Cargando" en la primera página
     if (currentProductsPage === 1) {
@@ -682,7 +688,7 @@ async function loadUserOrders() {
   if (!container) return;
   const token = localStorage.getItem('token');
   if (!token) {
-    container.innerHTML = '<p>Iniciá sesión para consultar tus pedidos.</p>';
+    container.innerHTML = '<p><a href="/login.html">Iniciá sesión</a> para consultar tus pedidos.</p>';
     return;
   }
 
@@ -698,21 +704,45 @@ async function loadUserOrders() {
     }
 
     container.innerHTML = data.map((order) => {
-      const items = (order.detalles || []).map((detail) =>
-        `<li>${escapeHtml(detail.nombreProducto)} x ${Number(detail.cantidad)}</li>`).join('');
+      const orderId = Number(order.id);
+      const status = String(order.estado || '');
+      const isPending = status.toLowerCase() === 'pendiente';
+      const items = (order.detalles || []).map((detail) => `
+        <li>
+          <span>${escapeHtml(detail.nombreProducto)} x ${Number(detail.cantidad)}</span>
+          <span>$${Number(detail.subtotal).toLocaleString('es-AR')}</span>
+        </li>
+      `).join('');
       return `<article class="order-item">
-        <div><h3>Pedido #${Number(order.id)}</h3><p>${escapeHtml(order.fecha)} · ${escapeHtml(order.estado)}</p></div>
-        <ul>${items}</ul><strong>$${Number(order.total).toLocaleString('es-AR')}</strong>
+        <div class="order-heading">
+          <h3>Pedido #${orderId}</h3>
+          <p>${escapeHtml(order.fecha)}</p>
+          <span class="order-status ${isPending ? 'is-pending' : 'is-closed'}">${escapeHtml(status)}</span>
+        </div>
+        <ul>${items}</ul>
+        <div class="order-summary">
+          <strong>Total: $${Number(order.total).toLocaleString('es-AR')}</strong>
+          ${isPending ? `<button type="button" class="btn-cancel-order" data-cancel-order="${orderId}">Cancelar pedido</button>` : ''}
+        </div>
       </article>`;
     }).join('');
+    container.querySelectorAll('[data-cancel-order]').forEach((button) => {
+      button.addEventListener('click', () => cancelOrder(button.dataset.cancelOrder, button));
+    });
   } catch (error) {
     container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
   }
 }
 
-async function cancelOrder(orderId) {
+async function cancelOrder(orderId, button) {
   if (!confirm(`¿Cancelar el pedido #${orderId}?`)) return;
   const token = localStorage.getItem('token');
+  if (!token) {
+    showNotification('Iniciá sesión para cancelar pedidos', 'error');
+    return;
+  }
+
+  if (button) button.disabled = true;
   try {
     const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}/cancelar`, {
       method: 'PATCH',
@@ -724,6 +754,8 @@ async function cancelOrder(orderId) {
     await loadUserOrders();
   } catch (error) {
     showNotification(error.message, 'error');
+  } finally {
+    if (button?.isConnected) button.disabled = false;
   }
 }
 
@@ -741,10 +773,12 @@ async function checkout() {
   }
 
   try {
-    const response = await fetch('/api/pedidos/demo', {
+    const token = localStorage.getItem('token');
+    const response = await fetch(token ? '/api/pedidos' : '/api/pedidos/demo', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         productos: cart.map((item) => ({ productoId: Number(item.id), cantidad: Number(item.quantity) })),
@@ -755,6 +789,7 @@ async function checkout() {
 
     saveCart([]);
     renderCart();
+    await loadUserOrders();
     showPurchaseConfirmation(data, cart);
   } catch (error) {
     showNotification(error.message, 'error');
@@ -772,8 +807,9 @@ function switchAuth(view) {
   const registerTab = document.getElementById('tab-register');
   const loginForm = document.getElementById('form-login');
   const registerForm = document.getElementById('form-register');
+  const showRegister = view === 'register';
 
-  if (view === 'login') {
+  if (!showRegister) {
     loginTab.classList.add('active');
     registerTab.classList.remove('active');
     loginForm.classList.add('active');
@@ -784,19 +820,15 @@ function switchAuth(view) {
     registerForm.classList.add('active');
     loginForm.classList.remove('active');
   }
+
+  loginForm.hidden = showRegister;
+  registerForm.hidden = !showRegister;
 }
 
 // Inicializar formularios de login/registro
 function initAuthForms() {
   const loginForm = document.getElementById('form-login');
   const registerForm = document.getElementById('form-register');
-  const phoneInput = document.getElementById('reg-telefono');
-
-  if (phoneInput) {
-    phoneInput.addEventListener('input', () => {
-      phoneInput.value = phoneInput.value.replace(/\D/g, '');
-    });
-  }
 
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -826,6 +858,7 @@ function initAuthForms() {
         localStorage.setItem('token', data.token);
         localStorage.setItem('userRole', data.user.role);
         localStorage.setItem('userName', data.user.name);
+        localStorage.setItem('userSurname', data.user.apellido || '');
 
         showNotification('¡Bienvenido!');
 
@@ -845,24 +878,18 @@ function initAuthForms() {
   if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = document.getElementById('reg-name')?.value;
-      const email = document.getElementById('reg-email')?.value;
-      const telefono = document.getElementById('reg-telefono')?.value;
+      const name = document.getElementById('reg-name')?.value.trim();
+      const apellido = document.getElementById('reg-apellido')?.value.trim();
+      const email = document.getElementById('reg-email')?.value.trim();
       const password = document.getElementById('reg-password')?.value;
-      const terms = document.getElementById('reg-terms')?.checked;
 
-      if (!name || !email || !telefono || !password) {
-        showNotification('Completa todos los campos', 'error');
+      if (!name || !apellido || !email || !password) {
+        showNotification('Completá nombre, apellido, email y contraseña', 'error');
         return;
       }
 
-      if (!/^[0-9]+$/.test(telefono)) {
-        showNotification('El teléfono debe contener solo números', 'error');
-        return;
-      }
-
-      if (!terms) {
-        showNotification('Acepta los términos', 'error');
+      if (password.length < 8) {
+        showNotification('La contraseña debe tener al menos 8 caracteres', 'error');
         return;
       }
 
@@ -870,7 +897,7 @@ function initAuthForms() {
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, telefono, password }),
+          body: JSON.stringify({ name, apellido, email, password }),
         });
 
         const data = await response.json();
@@ -881,6 +908,7 @@ function initAuthForms() {
           );
 
         showNotification('Registro exitoso. Ahora inicia sesión.');
+        document.getElementById('login-email').value = email;
         switchAuth('login');
         registerForm.reset();
       } catch (error) {
@@ -890,57 +918,66 @@ function initAuthForms() {
   }
 }
 
-// Actualizar navbar según login
-  const token = localStorage.getItem('token');
-  const btnLogin = document.getElementById('btn-nav-login');
-  const btnLogout = document.getElementById('btn-nav-logout');
+function updateAuthNavigation() {
+  const adminItem = document.getElementById('auth-admin-item');
+  const loginItem = document.getElementById('auth-login-item');
+  const sessionItem = document.getElementById('auth-session-item');
+  const greeting = document.getElementById('nav-user-greeting');
+  const logoutButton = document.getElementById('btn-nav-logout');
+  if (!loginItem || !sessionItem || !greeting || !logoutButton) return;
 
-  if (token && btnLogin && btnLogout) {
-    btnLogin.style.display = 'none';
-    btnLogout.style.display = 'block';
-
-    // NUEVO: Mostrar nombre de bienvenida al lado del botón salir
-    const userName = localStorage.getItem('userName');
-    if (userName) {
-      let greetingEl = document.getElementById('nav-user-greeting');
-      if (!greetingEl) {
-        greetingEl = document.createElement('span');
-        greetingEl.id = 'nav-user-greeting';
-        greetingEl.style.color = 'white';
-        greetingEl.style.marginRight = '10px';
-        greetingEl.style.fontSize = '0.9rem';
-        greetingEl.style.alignSelf = 'center';
-        // Inserta el texto justo antes del botón "Salir"
-        btnLogout.parentNode.insertBefore(greetingEl, btnLogout);
-      }
-      greetingEl.textContent = `Bienvenido, ${userName} | `;
-    }
+  const isAuthenticated = Boolean(localStorage.getItem('token'));
+  if (adminItem) {
+    adminItem.hidden = !isAuthenticated || localStorage.getItem('userRole') !== 'admin';
   }
+  loginItem.hidden = isAuthenticated;
+  sessionItem.hidden = !isAuthenticated;
+
+  const name = [localStorage.getItem('userName'), localStorage.getItem('userSurname')]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  greeting.textContent = name ? `Hola, ${name}` : 'Sesión iniciada';
+}
+
+function clearUserSession() {
+  ['token', 'userRole', 'userName', 'userSurname'].forEach((key) => {
+    localStorage.removeItem(key);
+  });
+  updateAuthNavigation();
+}
+
+window.clearUserSession = clearUserSession;
 
 // ========== LOGOUT ==========
-async function logoutUsuario() {
+function logoutUsuario() {
   const token = localStorage.getItem('token');
   const cart = getCart();
 
   if (token && cart.length > 0) {
     try {
-      await fetch('/api/clientes/carrito', {
+      fetch('/api/clientes/carrito', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ carrito: cart }),
+        keepalive: true,
+      }).catch((error) => {
+        console.error('Error guardando carrito antes de cerrar sesión:', error);
       });
     } catch (error) {
       console.error('Error guardando carrito:', error);
     }
   }
 
-  localStorage.clear();
+  clearUserSession();
   showNotification('Sesión cerrada');
-  setTimeout(() => (window.location.href = '/index.html'), 1000);
+  window.location.replace('/index.html');
 }
+
+window.logoutCurrentUser = logoutUsuario;
 
 // ========== MANEJO DEL FORMULARIO DE CONTACTO (PRESENTACIÓN) ==========
 document.addEventListener('DOMContentLoaded', () => {
@@ -1062,10 +1099,6 @@ function closeAdminModal() {
   if (modal) modal.classList.remove('active');
 }
 
-window.editProduct = async (id) => {
-  showNotification('Función en desarrollo');
-};
-
 window.deleteProduct = async (id) => {
   if (!confirm('¿Eliminar producto?')) return;
   try {
@@ -1119,6 +1152,9 @@ function initHamburgerMenu() {
 document.addEventListener('DOMContentLoaded', () => {
   // Inicializar menú
   initHamburgerMenu();
+  updateAuthNavigation();
+  document.getElementById('btn-nav-logout')?.addEventListener('click', logoutUsuario);
+  window.addEventListener('pageshow', updateAuthNavigation);
 
   // Actualizar contador del carrito
   updateCartCount();
@@ -1131,6 +1167,10 @@ document.addEventListener('DOMContentLoaded', () => {
       productNameSearch = document.getElementById('product-search')?.value.trim() || '';
       loadProductsPage(1);
     });
+    document.getElementById('product-sort')?.addEventListener('change', (event) => {
+      productSort = event.currentTarget.value;
+      loadProductsPage(1);
+    });
     loadProductCategories().finally(() => loadProductsPage());
   }
 
@@ -1140,6 +1180,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (document.getElementById('cart-items')) {
     renderCart();
+  }
+
+  if (document.getElementById('orders-container')) {
+    if (localStorage.getItem('userRole') === 'admin') {
+      const ordersTitle = document.getElementById('orders-title');
+      if (ordersTitle) ordersTitle.textContent = 'Gestión de pedidos';
+    }
+    loadUserOrders();
   }
 
   if (

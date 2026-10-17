@@ -24,6 +24,12 @@
                 <li><a href="../index.html">Inicio</a></li>
                 <li><a href="./productos.html">Productos</a></li>
                 <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span class="nav-cart-label">Carrito</span><span id="cart-count">0</span></a></li>
+                <li id="auth-admin-item" hidden><a class="nav-login" href="/admin.html">Dashboard Admin</a></li>
+                <li id="auth-login-item"><a id="btn-nav-login" class="nav-login" href="/login.html">Iniciar sesión</a></li>
+                <li id="auth-session-item" hidden>
+                    <span id="nav-user-greeting" class="nav-user-greeting"></span>
+                    <button type="button" id="btn-nav-logout" class="nav-logout">Cerrar sesión</button>
+                </li>
             </ul>
         </nav>
     </header>
@@ -36,6 +42,12 @@
                 <p>Total: <span id="cart-total">$0</span></p>
                 <button id="btn-checkout" class="btn-buy">Crear pedido</button>
                 <button id="btn-empty" class="btn-empty">Vaciar Carrito</button>
+            </div>
+        </section>
+        <section class="orders-section" id="orders-section" aria-labelledby="orders-title">
+            <h2 id="orders-title">Mis pedidos</h2>
+            <div id="orders-container" aria-live="polite">
+                <p>Cargando pedidos...</p>
             </div>
         </section>
     </main>

@@ -8,6 +8,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        body[hidden] {
+            display: none !important;
+        }
+
         /* Estilos adicionales específicos para el panel de admin */
         .admin-table-container {
             overflow-x: auto;
@@ -921,7 +925,7 @@
 }
     </style>
 </head>
-<body class="admin-body">
+<body class="admin-body" hidden>
 
     <div class="dashboard-layout">
         
@@ -938,9 +942,9 @@
                         </button>
                     </li>
                     <li>
-                        <button class="sidebar-link" onclick="window.location.href='../html/cart.html'">
-                            <i class="fa-solid fa-cart-shopping"></i> Carrito
-                        </button>
+                        <a class="sidebar-link" href="/cart.html#orders-section">
+                            <i class="fa-solid fa-receipt"></i> Gestión de pedidos
+                        </a>
                     </li>
                     <li class="sidebar-separator"></li>
                     <li>
@@ -949,7 +953,7 @@
     </button>
 </li>
                     <li>
-                        <button class="sidebar-link logout-link" onclick="logoutUsuario();">
+                        <button class="sidebar-link logout-link" onclick="window.logoutCurrentUser();">
                             <i class="fa-solid fa-right-from-bracket"></i> Salir
                         </button>
                     </li>
@@ -1077,16 +1081,48 @@
     
     <script>
         (() => {
-            // Verificación de seguridad al cargar la página
-            (function checkAdminAccess() {
+            async function verifyAdminAccess() {
                 const token = localStorage.getItem("token");
-                const role = localStorage.getItem("userRole");
-
-                if (!token || role !== "admin") {
-                    alert("Acceso denegado. Se requieren permisos de administrador.");
-                    window.location.href = "login.html";
+                if (!token) {
+                    window.location.replace("/login.html");
+                    return false;
                 }
-            })();
+
+                let response;
+                try {
+                    response = await fetch("/api/auth/admin-session", {
+                        headers: { Authorization: `Bearer ${token}` },
+                        cache: "no-store"
+                    });
+                } catch (error) {
+                    console.error("No se pudo validar la sesión de administrador:", error);
+                    window.location.replace("/index.html");
+                    return false;
+                }
+
+                if (response.status === 403) {
+                    const result = await response.json();
+                    if (result.message === "Acceso denegado. Se requieren permisos de administrador.") {
+                        window.location.replace("/index.html");
+                        return false;
+                    }
+                }
+                if (!response.ok) {
+                    window.clearUserSession();
+                    window.location.replace("/login.html");
+                    return false;
+                }
+                document.body.hidden = false;
+                return true;
+            }
+
+            window.adminAccessReady = verifyAdminAccess();
+            window.addEventListener("pageshow", (event) => {
+                if (event.persisted) {
+                    document.body.hidden = true;
+                    window.adminAccessReady = verifyAdminAccess();
+                }
+            });
 
             // ========== FUNCIONES PARA PRODUCTOS ==========
 
@@ -1537,6 +1573,7 @@
                                         <th>Precio</th>
                                         <th>Stock</th>
                                         <th>Categoría</th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1557,6 +1594,7 @@
                                 <td>$${precio}</td>
                                 <td><span class="stock-pill ${stock <= 0 ? 'is-empty' : ''}">${stock}</span></td>
                                 <td><span class="category-chip">${escapeHtml(categoria)}</span></td>
+                                <td><button type="button" class="btn-edit" onclick="editProduct(${Number(product.id)})"><i class="fa-solid fa-pen"></i> Editar</button></td>
                             </tr>
                         `;
                     });
@@ -1839,38 +1877,43 @@
                 modalBody.innerHTML = `
                     <form id="product-form">
                         <div class="form-group">
-                            <label>Nombre del Producto *</label>
-                            <input type="text" id="prod-name" value="${isEdit ? (product.name || product.nombre || '') : ''}" required placeholder="Ej. Auriculares Bluetooth">
+                            <label for="prod-name">Nombre del Producto *</label>
+                            <input type="text" id="prod-name" value="${isEdit ? escapeHtml(product.name || product.nombre || '') : ''}" required placeholder="Ej. Auriculares Bluetooth">
                         </div>
                         <div class="form-group">
-                            <label>Precio *</label>
-                            <input type="number" id="prod-price" value="${isEdit ? (product.price || product.precio || 0) : ''}" required step="0.01" placeholder="Ej. 15000">
+                            <label for="prod-price">Precio *</label>
+                            <input type="number" id="prod-price" value="${isEdit ? (product.price ?? product.precio ?? 0) : ''}" required min="0" step="0.01" placeholder="Ej. 15000">
                         </div>
                         <div class="form-group">
-                            <label>Stock *</label>
-                            <input type="number" id="prod-stock" value="${isEdit ? (product.stock || 0) : ''}" required placeholder="Ej. 10">
+                            <label for="prod-stock">Stock *</label>
+                            <input type="number" id="prod-stock" value="${isEdit ? (product.stock ?? 0) : ''}" required min="0" step="1" placeholder="Ej. 10">
                         </div>
                         <div class="form-group">
-                            <label>Categoría *</label>
-                            <input type="text" id="prod-category" value="${isEdit ? (product.categoria || product.category || '') : ''}" required placeholder="Ej. Electrónica">
+                            <label for="prod-category">Categoría *</label>
+                            <input type="text" id="prod-category" value="${isEdit ? escapeHtml(product.categoria || product.category || '') : ''}" required placeholder="Ej. Electrónica">
                         </div>
                         <div class="form-group">
-                            <label>Descripción</label>
+                            <label for="prod-description">Descripción</label>
                             <textarea id="prod-description" rows="3" placeholder="Descripción del producto">${isEdit ? escapeHtml(product.descripcion || '') : ''}</textarea>
                         </div>
                         <div class="form-group">
-                            <label>URL de la Imagen</label>
-                            <input type="text" id="prod-image" value="${isEdit ? (product.image || product.imagen || '') : ''}" placeholder="../img/producto.png">
+                            <label for="prod-image">URL de la Imagen</label>
+                            <input type="text" id="prod-image" value="${isEdit ? escapeHtml(product.image || product.imagen || '') : ''}" placeholder="../img/producto.png">
                             <small>Dejar vacío para usar imagen por defecto</small>
                         </div>
                     </form>
                 `;
+
+                modalBody.querySelector('#product-form').addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    saveProduct(isEdit ? Number(product.id) : null);
+                });
                 
                 const footer = document.createElement('div');
                 footer.className = 'modal-footer';
                 footer.innerHTML = `
                     <button type="button" class="btn-modal-cancel" onclick="closeAdminModal()">Cancelar</button>
-                    <button type="button" class="btn-modal-save" onclick="saveProduct(${isEdit ? product.id : 'null'})">Guardar</button>
+                    <button type="submit" form="product-form" class="btn-modal-save">Guardar</button>
                 `;
                 
                 // Limpiar footer anterior si existe
@@ -1884,15 +1927,18 @@
             }
             
             async function saveProduct(productId = null) {
-                const name = document.getElementById('prod-name')?.value;
-                const price = parseFloat(document.getElementById('prod-price')?.value);
-                const stock = parseInt(document.getElementById('prod-stock')?.value);
-                const category = document.getElementById('prod-category')?.value;
-                const image = document.getElementById('prod-image')?.value || '../img/placeholder.png';
+                const form = document.getElementById('product-form');
+                if (!form?.reportValidity()) return;
+
+                const name = document.getElementById('prod-name')?.value.trim();
+                const price = document.getElementById('prod-price')?.valueAsNumber;
+                const stock = document.getElementById('prod-stock')?.valueAsNumber;
+                const category = document.getElementById('prod-category')?.value.trim();
+                const image = document.getElementById('prod-image')?.value.trim() || '../img/placeholder.png';
                 const descripcion = document.getElementById('prod-description')?.value.trim() || '';
                 
-                if (!name || isNaN(price) || isNaN(stock) || !category) {
-                    showNotification('Por favor, completá todos los campos obligatorios', 'error');
+                if (!name || !category || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
+                    showNotification('Revisá nombre, categoría, precio y stock. El precio no puede ser negativo y el stock debe ser un entero no negativo.', 'error');
                     return;
                 }
                 
@@ -1903,8 +1949,6 @@
                     categoria: category,
                     descripcion,
                     image: image,
-                    validFrom: new Date().toISOString(),
-                    validTo: '2030-12-31T23:59:59.999Z'
                 };
                 
                 try {
@@ -1930,6 +1974,7 @@
                     }
                     
                     showNotification(productId ? '✓ Producto actualizado' : '✓ Producto creado');
+                    form.reset();
                     closeAdminModal();
                     await loadProductCategories();
                     await loadProducts(productId ? adminProductsPage : 1);
@@ -1942,15 +1987,17 @@
             
             async function editProduct(id) {
                 try {
-                    const response = await fetch(`/api/productos/${id}`);
-                    if (!response.ok) throw new Error('Error al cargar producto');
+                    const response = await fetch(`/api/productos/${encodeURIComponent(id)}`, {
+                        headers: getAuthHeaders()
+                    });
+                    if (!response.ok) throw new Error(await getErrorMessage(response, 'No se pudo cargar el producto'));
                     
                     const product = await response.json();
                     openProductModal(product);
                     
                 } catch (error) {
                     console.error('Error:', error);
-                    showNotification('Error al cargar el producto', 'error');
+                    showNotification(error.message, 'error');
                 }
             }
             
@@ -2376,15 +2423,14 @@
                     }
                 }
                 
-                localStorage.clear();
+                window.clearUserSession();
                 showNotification('Sesión cerrada correctamente');
-                setTimeout(() => {
-                    window.location.href = 'login.html';
-                }, 1000);
+                window.location.replace('/index.html');
             }
             
             // ========== INICIALIZACIÓN ==========
-            document.addEventListener('DOMContentLoaded', () => {
+            document.addEventListener('DOMContentLoaded', async () => {
+                if (!await window.adminAccessReady) return;
                 setupProductFilters();
                 loadProductCategories();
                 loadProducts();
@@ -2396,6 +2442,7 @@
             window.openCustomerModal = openCustomerModal;
             window.openCouponModal = openCouponModal;
             window.deleteProduct = deleteProduct;
+            window.editProduct = editProduct;
             window.editCustomer = editCustomer;
             window.deleteCustomer = deleteCustomer;
             window.editCoupon = editCoupon;

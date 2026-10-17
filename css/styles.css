@@ -1652,6 +1652,34 @@ nav ul li a:hover {
     color: var(--accent-color);
 }
 
+#auth-session-item:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-user-greeting {
+    color: var(--dark-color);
+    font-size: 0.9rem;
+}
+
+.nav-logout {
+    min-height: 40px;
+    padding: 8px 13px;
+    border: 1px solid #c7d8d3;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--dark-color);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.9rem;
+}
+
+.nav-logout:hover {
+    background: #edf4f2;
+    color: var(--accent-color);
+}
+
 .nav-login {
     border: 1px solid #c7d8d3;
     border-radius: 8px;
@@ -1890,6 +1918,37 @@ nav ul li a:hover {
     text-transform: uppercase;
 }
 
+.filters-content {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.catalog-sort-control {
+    display: grid;
+    flex: 0 0 250px;
+    gap: 9px;
+}
+
+.catalog-sort-control label {
+    color: #687c77;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.catalog-sort-control select {
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid #d9e2de;
+    border-radius: 8px;
+    background: #fff;
+    color: var(--dark-color);
+    font: inherit;
+}
+
 .filter-btn {
     border: 1px solid #d6e1dd;
     border-radius: 7px;
@@ -2062,6 +2121,49 @@ footer {
 footer p {
     margin: 14px;
 }
+.order-heading {
+    display: grid;
+    gap: 4px;
+}
+.order-heading p {
+    color: var(--grey-color);
+    font-size: 0.9rem;
+}
+.order-status {
+    width: fit-content;
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+.order-status.is-pending {
+    background: #fff2d6;
+    color: #835c11;
+}
+.order-status.is-closed {
+    background: #e8efec;
+    color: #50615b;
+}
+.order-item ul {
+    display: grid;
+    gap: 6px;
+    list-style: none;
+    padding: 0;
+}
+.order-item li,
+.order-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.order-summary {
+    flex-direction: column;
+    align-items: flex-end;
+}
+.order-summary .btn-cancel-order {
+    margin: 0;
+}
 
 footer p span {
     color: var(--accent-color);
@@ -2167,6 +2269,16 @@ footer p span {
 
     #product-controls .btn-buy {
         grid-column: 2;
+    }
+
+    .filters-content {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .catalog-sort-control {
+        flex-basis: auto;
     }
 
     .cart-container {

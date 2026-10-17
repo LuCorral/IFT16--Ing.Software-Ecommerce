@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { col, fn, where } = require("sequelize");
 const User = require("../models/User");
 
 const authController = {
@@ -6,7 +7,8 @@ const authController = {
         try {
             const { email, password } = req.body;
 
-            if (!email || !password) {
+            const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+            if (!normalizedEmail || !password) {
                 return res.status(400).json({
                     success: false,
                     message: "Email y password son obligatorios"
@@ -14,7 +16,7 @@ const authController = {
             }
 
             const user = await User.findOne({
-                where: { email }
+                where: where(fn("lower", col("email")), normalizedEmail)
             });
 
             if (!user) {
@@ -36,6 +38,7 @@ const authController = {
             const payload = {
                 id: user.id,
                 name: user.name,
+                apellido: user.apellido,
                 email: user.email,
                 role: user.role
             };
@@ -51,6 +54,7 @@ const authController = {
                 user: {
                     id: user.id,
                     name: user.name,
+                    apellido: user.apellido,
                     email: user.email,
                     telefono: user.telefono,
                     role: user.role
@@ -70,40 +74,71 @@ const authController = {
 
     register: async (req, res) => {
         try {
-            const { name, email, password, telefono } = req.body;
+            const { name, apellido, email, password, telefono } = req.body || {};
+            const normalizedName = typeof name === "string" ? name.trim() : "";
+            const normalizedApellido = typeof apellido === "string" ? apellido.trim() : "";
+            const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
 
-            if (!name || !email || !password || !telefono) {
-                return res.status(400).json({ success: false, message: "Todos los campos son obligatorios" });
+            if (!normalizedName || !normalizedApellido || !normalizedEmail || typeof password !== "string") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Nombre, apellido, email y contraseña son obligatorios"
+                });
             }
 
-            if (!/^[0-9]+$/.test(String(telefono))) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+                return res.status(400).json({ success: false, message: "Ingresá un email válido" });
+            }
+
+            if (password.length < 8) {
+                return res.status(400).json({
+                    success: false,
+                    message: "La contraseña debe tener al menos 8 caracteres"
+                });
+            }
+
+            if (telefono && !/^[0-9]+$/.test(String(telefono))) {
                 return res.status(400).json({ success: false, message: "El teléfono debe contener solo números" });
             }
 
-            // Validar si el email ya existe
-            const existeUsuario = await User.findOne({ where: { email } });
+            const existeUsuario = await User.findOne({
+                where: where(fn("lower", col("email")), normalizedEmail)
+            });
             if (existeUsuario) {
-                return res.status(400).json({ success: false, message: "El correo electrónico ya está registrado" });
+                return res.status(409).json({ success: false, message: "El correo electrónico ya está registrado" });
             }
 
-            // Crear el usuario en la BD (Por defecto rol 'client')
-            // Nota: Tu modelo 'User' debería encriptar la contraseña mediante hooks de Sequelize antes de guardar
-            await User.create({
-                name,
-                email,
+            const usuario = await User.create({
+                name: normalizedName,
+                apellido: normalizedApellido,
+                email: normalizedEmail,
                 password,
-                telefono,
+                telefono: telefono ? String(telefono).trim() : null,
                 role: "client"
             });
 
             res.status(201).json({
                 success: true,
-                message: "Usuario registrado con éxito. Ya podés iniciar sesión."
+                message: "Usuario registrado con éxito. Ya podés iniciar sesión.",
+                user: {
+                    id: usuario.id,
+                    name: usuario.name,
+                    apellido: usuario.apellido,
+                    email: usuario.email,
+                    role: usuario.role
+                }
             });
 
         } catch (error) {
+            if (error.name === "SequelizeUniqueConstraintError") {
+                return res.status(409).json({
+                    success: false,
+                    message: "El correo electrónico ya está registrado"
+                });
+            }
+
             console.error("Error en registro:", error);
-            res.status(500).json({ success: false, message: "Error al registrar el usuario", detalle: error.message });
+            res.status(500).json({ success: false, message: "Error al registrar el usuario" });
         }
     }
 };
