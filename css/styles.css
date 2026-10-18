@@ -1007,6 +1007,26 @@ body.modal-open {
     margin: 60px auto;
 }
 
+.profile-details {
+    margin: 0;
+}
+
+.profile-details div {
+    padding: 14px 0;
+    border-top: 1px solid var(--light-color);
+}
+
+.profile-details dt {
+    color: var(--grey-color);
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.profile-details dd {
+    margin: 5px 0 0;
+    color: var(--dark-color);
+}
+
 .auth-tabs {
     display: flex;
     border-bottom: 2px solid var(--light-color);

@@ -297,7 +297,10 @@ password: 123456
 ```http
 POST /api/auth/login
 POST /api/auth/register
+GET  /api/auth/profile
 ```
+
+`GET /api/auth/profile` requiere JWT y devuelve el perfil del usuario autenticado.
 
 Ejemplo de login:
 
@@ -405,31 +408,35 @@ PUT    /api/cupones/:id
 DELETE /api/cupones/:id
 ```
 
-### Checkout
+### Checkout y pedidos
 
 ```http
-POST /api/checkout
+POST /api/pedidos
 ```
 
-Requiere usuario autenticado. Valida:
+Requiere usuario autenticado. Es el único flujo para crear pedidos y valida:
 
-- carrito no vacío;
-- productos existentes y vigentes;
-- stock disponible;
+- productos y cantidades;
+- stock disponible y descuento de stock;
 - cupón aplicado, si corresponde;
-- descuento final y actualización de stock.
+- subtotal, descuento y total final.
 
 ### Pedidos, detalles y tickets
 
-Estas rutas se montan protegidas desde `server.js`, por lo que requieren token y rol `admin`.
+Las rutas de pedidos requieren JWT. Los clientes solo consultan sus pedidos; el administrador puede consultar todos. Las transiciones administrativas (`PUT`) requieren rol `admin`.
 
 ```http
 GET    /api/pedidos
 GET    /api/pedidos/:id
 POST   /api/pedidos
+POST   /api/pedidos/:id/pagar
+GET    /api/pedidos/:id/comprobante
+PATCH  /api/pedidos/:id/cancelar
 PUT    /api/pedidos/:id
 DELETE /api/pedidos/:id
 ```
+
+Los detalles de pedido y tickets requieren JWT y rol `admin`.
 
 ```http
 GET    /api/detalles-pedido

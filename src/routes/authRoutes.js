@@ -5,6 +5,7 @@ const { authenticateToken, isAdmin } = require("../middlewares/authMiddleware");
 
 router.post("/login", authController.login);
 router.post("/register", authController.register);
+router.get("/profile", authenticateToken, authController.profile);
 router.get("/admin-session", authenticateToken, isAdmin, (req, res) => {
     res.json({
         user: {

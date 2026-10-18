@@ -7,6 +7,7 @@ let productsPagination = null;
 let productNameSearch = '';
 let productRequestId = 0;
 let productSort = '';
+let cartPricesReady = false;
 
 let isLoadingProducts = false;
 const PRODUCTS_PAGE_LIMIT = 10;
@@ -64,19 +65,85 @@ function roundMoney(amount) {
 }
 
 function updateCartSummary() {
+  const subtotalElement = document.getElementById('cart-subtotal');
+  const discountElement = document.getElementById('cart-discount');
+  const totalElement = document.getElementById('cart-total');
+  if (!cartPricesReady) {
+    if (subtotalElement) subtotalElement.textContent = '—';
+    if (discountElement) discountElement.textContent = '—';
+    if (totalElement) totalElement.textContent = '—';
+    return;
+  }
+
   const subtotal = roundMoney(getCart().reduce(
     (sum, item) => sum + Number(item.price) * Number(item.quantity),
     0,
   ));
   const discountPercent = Number(sessionStorage.getItem('cuponDescuento')) || 0;
   const discount = roundMoney(subtotal * discountPercent / 100);
-  const subtotalElement = document.getElementById('cart-subtotal');
-  const discountElement = document.getElementById('cart-discount');
-  const totalElement = document.getElementById('cart-total');
 
   if (subtotalElement) subtotalElement.textContent = `$${subtotal.toLocaleString('es-AR')}`;
   if (discountElement) discountElement.textContent = `-$${discount.toLocaleString('es-AR')}`;
   if (totalElement) totalElement.textContent = `$${roundMoney(subtotal - discount).toLocaleString('es-AR')}`;
+}
+
+async function synchronizeCartPrices() {
+  const cart = getCart();
+  let changed = false;
+  const updatedCart = await Promise.all(cart.map(async (item) => {
+    const response = await fetch(`/api/productos/${encodeURIComponent(item.id)}`);
+    const product = await response.json();
+    if (!response.ok) {
+      throw new Error(product.error || `No se pudo validar ${item.name || 'un producto'} en el catálogo`);
+    }
+
+    const price = Number(product.price ?? product.precio);
+    const stock = Number(product.stock);
+    if (!Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
+      throw new Error(`El producto ${product.name || product.nombre || item.name} tiene datos de precio o stock inválidos`);
+    }
+
+    if (price !== Number(item.price) || stock !== Number(item.stock)) changed = true;
+    return {
+      ...item,
+      id: product.id,
+      name: product.name || product.nombre,
+      price,
+      stock,
+      image: product.image || item.image,
+    };
+  }));
+
+  localStorage.setItem('cart', JSON.stringify(updatedCart));
+  return changed;
+}
+
+async function refreshCartSummary() {
+  const couponCode = sessionStorage.getItem('cuponAplicado');
+  const previousDiscount = sessionStorage.getItem('cuponDescuento');
+  sessionStorage.removeItem('cuponDescuento');
+
+  const pricesChanged = await synchronizeCartPrices();
+  cartPricesReady = true;
+  renderCart();
+
+  if (!getCart().length) {
+    clearAppliedCoupon();
+    return { changed: pricesChanged };
+  }
+
+  if (couponCode) {
+    const couponInput = document.getElementById('coupon-code');
+    if (couponInput) couponInput.value = couponCode;
+    const couponApplied = await applyCoupon(couponCode);
+    const currentDiscount = sessionStorage.getItem('cuponDescuento');
+    return {
+      changed: pricesChanged || !couponApplied || currentDiscount !== previousDiscount,
+    };
+  }
+
+  updateCartSummary();
+  return { changed: pricesChanged };
 }
 
 function showPurchaseConfirmation(data, cart) {
@@ -648,18 +715,22 @@ function emptyCart() {
   }
 }
 
-async function applyCoupon() {
+async function applyCoupon(codeOverride = null) {
   const couponInput = document.getElementById('coupon-code');
   const couponMessage = document.getElementById('coupon-message');
   
   if (!couponInput || !couponMessage) return;
 
-  const code = couponInput.value.trim().toUpperCase();
+  const inputCode = typeof codeOverride === 'string'
+    ? codeOverride
+    : couponInput.value;
+  const code = inputCode.trim().toUpperCase();
+  if (typeof codeOverride === 'string') couponInput.value = code;
   if (!code) {
     clearAppliedCoupon();
     couponMessage.textContent = 'Por favor ingresa un código de cupón';
     couponMessage.className = 'coupon-message error';
-    return;
+    return false;
   }
 
   const cart = getCart();
@@ -669,7 +740,7 @@ async function applyCoupon() {
     clearAppliedCoupon();
     couponMessage.textContent = 'Tu carrito está vacío';
     couponMessage.className = 'coupon-message error';
-    return;
+    return false;
   }
 
   try {
@@ -680,7 +751,7 @@ async function applyCoupon() {
       clearAppliedCoupon();
       couponMessage.textContent = data.mensaje || 'Cupón inválido';
       couponMessage.className = 'coupon-message error';
-      return;
+      return false;
     }
 
     const discountPercent = Number(data.descuento);
@@ -693,11 +764,13 @@ async function applyCoupon() {
     couponMessage.textContent = `✓ Cupón aplicado: ${data.codigo} | Descuento: -$${descuento.toLocaleString('es-AR')}`;
     couponMessage.className = 'coupon-message success';
     updateCartSummary();
+    return true;
   } catch (error) {
     clearAppliedCoupon();
     couponMessage.textContent = 'Error al validar cupón: ' + error.message;
     couponMessage.className = 'coupon-message error';
     updateCartSummary();
+    return false;
   }
 }
 
@@ -880,8 +953,7 @@ async function cancelOrder(orderId, button) {
 }
 
 async function checkout() {
-  const cart = getCart();
-  if (!cart.length) {
+  if (!getCart().length) {
     showNotification('El carrito está vacío', 'error');
     return;
   }
@@ -899,6 +971,20 @@ async function checkout() {
   }
 
   try {
+    const hadCurrentPrices = cartPricesReady;
+    cartPricesReady = false;
+    const summaryRefresh = await refreshCartSummary();
+    if (summaryRefresh.changed && hadCurrentPrices) {
+      showNotification('Se actualizaron precios, stock o descuento. Revisá el total y confirmá nuevamente.', 'error');
+      return;
+    }
+
+    const cart = getCart();
+    if (!cart.length) {
+      showNotification('El carrito está vacío', 'error');
+      return;
+    }
+
     const response = await fetch('/api/pedidos', {
       method: 'POST',
       headers: {
@@ -1069,11 +1155,13 @@ function updateAuthNavigation() {
   const adminItem = document.getElementById('auth-admin-item');
   const loginItem = document.getElementById('auth-login-item');
   const sessionItem = document.getElementById('auth-session-item');
+  const profileItem = document.getElementById('auth-profile-item');
   const greeting = document.getElementById('nav-user-greeting');
   const logoutButton = document.getElementById('btn-nav-logout');
   if (!loginItem || !sessionItem || !greeting || !logoutButton) return;
 
   const isAuthenticated = Boolean(localStorage.getItem('token'));
+  if (profileItem) profileItem.hidden = !isAuthenticated;
   if (adminItem) {
     adminItem.hidden = !isAuthenticated || localStorage.getItem('userRole') !== 'admin';
   }
@@ -1085,6 +1173,41 @@ function updateAuthNavigation() {
     .join(' ')
     .trim();
   greeting.textContent = name ? `Hola, ${name}` : 'Sesión iniciada';
+}
+
+async function loadUserProfile() {
+  const container = document.getElementById('profile-content');
+  if (!container) return;
+
+  const token = localStorage.getItem('token');
+  if (!token) {
+    container.innerHTML = '<p><a href="/login.html">Iniciá sesión</a> para ver tu perfil.</p>';
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/profile', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    const data = await response.json();
+    if (response.status === 401 || response.status === 403) {
+      clearUserSession();
+      container.innerHTML = '<p>Tu sesión venció. <a href="/login.html">Iniciá sesión</a> para ver tu perfil.</p>';
+      return;
+    }
+    if (!response.ok) throw new Error(data.message || 'No se pudo cargar el perfil');
+
+    container.innerHTML = `
+      <dl class="profile-details">
+        <div><dt>Nombre</dt><dd>${escapeHtml(data.user.name)}</dd></div>
+        <div><dt>Apellido</dt><dd>${escapeHtml(data.user.apellido)}</dd></div>
+        <div><dt>Email</dt><dd>${escapeHtml(data.user.email)}</dd></div>
+      </dl>
+    `;
+  } catch (error) {
+    container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
+  }
 }
 
 function clearUserSession() {
@@ -1326,15 +1449,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (document.getElementById('cart-items')) {
-    renderCart();
-    const appliedCoupon = sessionStorage.getItem('cuponAplicado');
-    if (appliedCoupon) {
-      const couponInput = document.getElementById('coupon-code');
-      if (couponInput) {
-        couponInput.value = appliedCoupon;
-        applyCoupon();
-      }
-    }
+    const cartContainer = document.getElementById('cart-items');
+    const checkoutButton = document.getElementById('btn-checkout');
+    if (cartContainer) cartContainer.innerHTML = '<p>Validando precios actuales...</p>';
+    if (checkoutButton) checkoutButton.disabled = true;
+    refreshCartSummary()
+      .catch((error) => {
+        showNotification(error.message, 'error');
+        updateCartSummary();
+      })
+      .finally(() => {
+        if (checkoutButton) checkoutButton.disabled = false;
+      });
+  }
+
+  if (document.getElementById('profile-content')) {
+    loadUserProfile();
   }
 
   if (document.getElementById('orders-container')) {
@@ -1366,6 +1496,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnCheckout) btnCheckout.addEventListener('click', checkout);
 
   const btnApplyCoupon = document.getElementById('btn-apply-coupon');
-  if (btnApplyCoupon) btnApplyCoupon.addEventListener('click', applyCoupon);
+  if (btnApplyCoupon) btnApplyCoupon.addEventListener('click', () => applyCoupon());
 
 });

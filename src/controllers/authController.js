@@ -3,6 +3,37 @@ const { col, fn, where } = require("sequelize");
 const User = require("../models/User");
 
 const authController = {
+    profile: async (req, res) => {
+        try {
+            const user = await User.findByPk(req.user.id, {
+                attributes: ["id", "name", "apellido", "email"]
+            });
+
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Usuario no encontrado"
+                });
+            }
+
+            res.json({
+                success: true,
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    apellido: user.apellido,
+                    email: user.email
+                }
+            });
+        } catch (error) {
+            console.error("Error al consultar el perfil:", error);
+            res.status(500).json({
+                success: false,
+                message: "Error al consultar el perfil"
+            });
+        }
+    },
+
     login: async (req, res) => {
         try {
             const { email, password } = req.body;
