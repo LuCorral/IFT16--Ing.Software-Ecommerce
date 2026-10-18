@@ -314,40 +314,39 @@ async function checkout(codigoCupon = null) {
     return;
   }
 
-  let totalFinal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-  if (codigoCupon) {
-    const resultado = await aplicarCupon(codigoCupon, totalFinal);
-    if (resultado.monto_final) {
-      totalFinal = resultado.monto_final;
-    }
+  const token = localStorage.getItem("token");
+  if (!token) {
+    window.location.href = "/login.html?reason=checkout&returnTo=%2Fhtml%2Fcart.html";
+    return;
   }
 
   try {
-    const response = await fetch("/api/checkout", {
+    const response = await fetch("/api/pedidos", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ carrito: cart, total: totalFinal, cupon_aplicado: codigoCupon })
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        productos: cart.map((item) => ({
+          productoId: Number(item.id),
+          cantidad: Number(item.quantity)
+        })),
+        ...(codigoCupon ? { cupon: codigoCupon } : {})
+      })
     });
 
-    if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const result = await response.json();
+    if (!response.ok) throw new Error(result.mensaje || `Error HTTP: ${response.status}`);
+    const totalFinal = Number(result.total ?? result.pedido?.total);
+    if (!Number.isFinite(totalFinal)) throw new Error("El servidor no devolvió el total del pedido");
 
     alert(`¡Gracias por tu compra! Total: $${totalFinal.toLocaleString("es-AR")}\n${result.mensaje || ""}`);
     saveCart([]);
     renderCart();
     window.location.href = "../index.html";
   } catch (error) {
-    showNotification("Ocurrió un error al finalizar la compra", "error");
-  }
-}
-
-async function aplicarCupon(codigo, monto) {
-  try {
-    const response = await fetch(`/api/cupones/aplicar/${codigo}?monto=${monto}`);
-    return await response.json();
-  } catch (error) {
-    return { mensaje: "Error al aplicar cupón" };
+    showNotification(error.message, "error");
   }
 }
 

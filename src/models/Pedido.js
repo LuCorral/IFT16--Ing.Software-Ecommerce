@@ -20,6 +20,20 @@ const Pedido = sequelize.define('Pedido', {
     type: DataTypes.FLOAT,
     allowNull: false,
     defaultValue: 0
+  },
+  subtotal: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    defaultValue: 0
+  },
+  descuento: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    defaultValue: 0
+  },
+  cuponCodigo: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 });
 

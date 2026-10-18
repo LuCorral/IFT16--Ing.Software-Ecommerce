@@ -10,7 +10,6 @@
 </head>
 
 <body>
-    <script>window.location.replace('/');</script>
     <header>
         <div class="logo-container">
             <a class="logo" href="../index.html">Ecommerce</a>
@@ -25,6 +24,13 @@
                 <li><a href="../index.html">Inicio</a></li>
                 <li><a href="./productos.html">Productos</a></li>
                 <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span class="nav-cart-label">Carrito</span><span id="cart-count">0</span></a></li>
+                <li id="auth-admin-item" hidden><a class="nav-login" href="/admin.html">Dashboard Admin</a></li>
+                <li id="auth-login-item"><a id="btn-nav-login" class="nav-login" href="/login.html">Iniciar sesión</a></li>
+                <li id="auth-profile-item" hidden><a class="nav-login" href="/profile.html">Mi perfil</a></li>
+                <li id="auth-session-item" hidden>
+                    <span id="nav-user-greeting" class="nav-user-greeting"></span>
+                    <button type="button" id="btn-nav-logout" class="nav-logout">Cerrar sesión</button>
+                </li>
             </ul>
         </nav>
     </header>
@@ -32,7 +38,7 @@
     <div class="auth-container">
         <div class="auth-tabs">
             <button class="tab-btn active" id="tab-login" onclick="switchAuth('login')">Iniciar Sesión</button>
-            <button class="tab-btn" id="tab-register" hidden onclick="switchAuth('register')">Crear Cuenta</button>
+            <button class="tab-btn" id="tab-register" onclick="switchAuth('register')">Crear Cuenta</button>
         </div>
 
         <form id="form-login" class="auth-form active">
@@ -58,28 +64,23 @@
             <p class="auth-subtitle">Registrate para realizar tus compras más rápido.</p>
             
             <div class="input-group">
-                <label for="reg-name">Nombre Completo</label>
-                <input type="text" id="reg-name" placeholder="Juan Pérez" required>
+                <label for="reg-name">Nombre</label>
+                <input type="text" id="reg-name" autocomplete="given-name" required>
+            </div>
+
+            <div class="input-group">
+                <label for="reg-apellido">Apellido</label>
+                <input type="text" id="reg-apellido" autocomplete="family-name" required>
             </div>
 
             <div class="input-group">
                 <label for="reg-email">Correo Electrónico</label>
-                <input type="email" id="reg-email" placeholder="ejemplo@correo.com" required>
-            </div>
-
-            <div class="input-group">
-                <label for="reg-telefono">Teléfono</label>
-                <input type="tel" id="reg-telefono" placeholder="1122334455" inputmode="numeric" pattern="[0-9]+" required>
+                <input type="email" id="reg-email" placeholder="ejemplo@correo.com" autocomplete="email" required>
             </div>
             
             <div class="input-group">
                 <label for="reg-password">Contraseña</label>
-                <input type="password" id="reg-password" placeholder="Mínimo 8 caracteres" required>
-            </div>
-
-            <div class="input-group-checkbox">
-                <input type="checkbox" id="reg-terms" required>
-                <label for="reg-terms">Acepto los términos y condiciones</label>
+                <input type="password" id="reg-password" placeholder="Mínimo 8 caracteres" minlength="8" autocomplete="new-password" required>
             </div>
             
             <button type="submit" class="btn-auth">Registrarme</button>

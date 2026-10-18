@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+    <title>Ecommerce | Mi perfil</title>
+</head>
+
+<body>
+    <header>
+        <div class="logo-container">
+            <a class="logo" href="../index.html">Ecommerce</a>
+        </div>
+        <div class="hamburger-menu" id="hamburger-menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <nav class="nav-menu" id="nav-menu">
+            <ul>
+                <li><a href="../index.html">Inicio</a></li>
+                <li><a href="./productos.html">Productos</a></li>
+                <li><a href="./cart.html"><i class="fa-solid fa-cart-shopping"></i><span class="nav-cart-label">Carrito</span><span id="cart-count">0</span></a></li>
+                <li id="auth-admin-item" hidden><a class="nav-login" href="/admin.html">Dashboard Admin</a></li>
+                <li id="auth-login-item"><a id="btn-nav-login" class="nav-login" href="/login.html">Iniciar sesión</a></li>
+                <li id="auth-profile-item" hidden><a class="nav-login" href="/profile.html">Mi perfil</a></li>
+                <li id="auth-session-item" hidden>
+                    <span id="nav-user-greeting" class="nav-user-greeting"></span>
+                    <button type="button" id="btn-nav-logout" class="nav-logout">Cerrar sesión</button>
+                </li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section class="auth-container profile-container" aria-labelledby="profile-title">
+            <h1 id="profile-title">Mi perfil</h1>
+            <p class="auth-subtitle">Información de tu cuenta.</p>
+            <div id="profile-content" aria-live="polite">
+                <p>Cargando perfil...</p>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <div>
+            <p><span>Ecommerce</span></p>
+        </div>
+    </footer>
+    <script src="../js/main.js?v=profile-and-current-prices"></script>
+</body>
+
+</html>

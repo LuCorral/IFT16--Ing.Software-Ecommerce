@@ -13,7 +13,8 @@ const Ticket = sequelize.define('Ticket', {
   },
   tipo_factura: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    defaultValue: 'Comprobante no fiscal'
   },
   total: {
     type: DataTypes.FLOAT,
@@ -22,7 +23,41 @@ const Ticket = sequelize.define('Ticket', {
   },
   CAE: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
+  },
+  subtotal: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    defaultValue: 0
+  },
+  descuento: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    defaultValue: 0
+  },
+  cuponCodigo: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  cliente: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: ''
+  },
+  detalles: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+    defaultValue: '[]'
+  },
+  metodo_pago: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'Tarjeta'
+  },
+  estado_pago: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'Aprobado'
   }
 });
 
