@@ -39,10 +39,110 @@
             padding: 12px 15px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
+            overflow-wrap: anywhere;
         }
 
         .admin-table tr:hover {
             background: #f5f5f5;
+        }
+
+        #admin-orders-container .admin-table {
+            min-width: 900px;
+        }
+
+        #admin-orders-container .admin-table th:nth-child(1),
+        #admin-orders-container .admin-table td:nth-child(1) {
+            width: 82px;
+        }
+
+        #admin-orders-container .admin-table th:nth-child(2),
+        #admin-orders-container .admin-table td:nth-child(2) {
+            width: 230px;
+        }
+
+        #admin-orders-container .admin-table th:nth-child(3),
+        #admin-orders-container .admin-table td:nth-child(3) {
+            width: 115px;
+        }
+
+        #admin-orders-container .admin-table th:nth-child(4),
+        #admin-orders-container .admin-table td:nth-child(4) {
+            width: 135px;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        #admin-orders-container .admin-table th:nth-child(5),
+        #admin-orders-container .admin-table td:nth-child(5) {
+            width: 125px;
+        }
+
+        #admin-orders-container .admin-table th:nth-child(6),
+        #admin-orders-container .admin-table td:nth-child(6) {
+            width: 220px;
+        }
+
+        .order-customer-cell strong,
+        .order-customer-cell span {
+            display: block;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }
+
+        .order-customer-cell span {
+            color: #536575;
+            font-size: 0.82rem;
+        }
+
+        .order-state-badge {
+            display: inline-flex;
+            max-width: 100%;
+            padding: 5px 9px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .order-state-badge.is-paid,
+        .order-state-badge.is-delivered {
+            background: #e4f3e9;
+            color: #1e5d37;
+        }
+
+        .order-state-badge.is-shipped {
+            background: #e5eef9;
+            color: #244f7a;
+        }
+
+        .order-state-badge.is-other {
+            background: #fff2d6;
+            color: #704f12;
+        }
+
+        .admin-order-action {
+            width: 100%;
+            min-height: 40px;
+            padding: 7px 10px;
+            border: 1px solid #cfd9e3;
+            border-radius: 8px;
+            background: #fff;
+            color: var(--dark-color);
+            font: inherit;
+        }
+
+        .admin-order-action:focus-visible,
+        .admin-body button:focus-visible,
+        .admin-body input:focus-visible,
+        .admin-body select:focus-visible,
+        .admin-body textarea:focus-visible {
+            outline: 3px solid rgba(207, 120, 100, 0.55);
+            outline-offset: 2px;
+        }
+
+        .admin-order-action:disabled {
+            cursor: wait;
+            opacity: 0.65;
         }
 
         .admin-actions {
@@ -655,10 +755,13 @@
         .form-group select,
         .form-group textarea {
             width: 100%;
+            min-height: 42px;
             padding: 10px 12px;
             border: 1px solid var(--light-grey);
             border-radius: 8px;
-            font-size: 0.95rem;
+            background: #fbfcfd;
+            color: var(--dark-color);
+            font: inherit;
             transition: all 0.3s ease;
         }
 
@@ -675,6 +778,19 @@
             margin-top: 5px;
             color: var(--grey-color);
             font-size: 0.75rem;
+        }
+
+        .form-group [role="status"]:empty {
+            display: none;
+        }
+
+        .form-group button[hidden] {
+            display: none;
+        }
+
+        .admin-table-container {
+            max-width: 100%;
+            overscroll-behavior-x: contain;
         }
 
         .modal-footer {
@@ -922,6 +1038,70 @@
 #coupons-container .admin-table th:nth-child(7),
 #coupons-container .admin-table td:nth-child(7) {
     width: 200px;
+}
+
+@media (max-width: 768px) {
+    .admin-body .dashboard-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-body .admin-sidebar {
+        position: static;
+        display: flex;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+    }
+
+    .admin-body .sidebar-brand {
+        flex: 0 0 auto;
+        padding: 18px;
+        border-right: 1px solid rgba(255, 255, 255, 0.18);
+        border-bottom: 0;
+    }
+
+    .admin-body .sidebar-nav {
+        min-width: 0;
+        overflow-x: auto;
+        padding: 12px;
+    }
+
+    .admin-body .sidebar-nav ul {
+        display: flex;
+        width: max-content;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 8px;
+        padding: 0;
+    }
+
+    .admin-body .sidebar-nav li {
+        flex: 0 0 auto;
+    }
+
+    .sidebar-separator {
+        display: none;
+    }
+
+    .admin-body .admin-content {
+        width: 100%;
+        min-width: 0;
+        padding: 20px 15px;
+    }
+
+    .admin-body .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .admin-body .admin-card {
+        min-width: 0;
+    }
+
+    .admin-table-container {
+        width: 100%;
+        overflow-x: auto;
+    }
 }
     </style>
 </head>
@@ -1267,8 +1447,13 @@
 
                     const categorias = await response.json();
                     const options = ['<option value="">Todas las categorías</option>'];
+                    const uniqueCategories = [...new Map(
+                        categorias
+                            .filter((categoria) => typeof categoria === 'string' && categoria.trim())
+                            .map((categoria) => [categoria.trim().toLocaleLowerCase('es-AR'), categoria.trim()])
+                    ).values()];
 
-                    categorias.forEach((categoria) => {
+                    uniqueCategories.forEach((categoria) => {
                         const selected = categoria === adminProductFilters.categoria ? 'selected' : '';
                         options.push(`<option value="${escapeHtml(categoria)}" ${selected}>${escapeHtml(categoria)}</option>`);
                     });
@@ -1879,6 +2064,55 @@
             }
             
             // ========== CRUD DE PRODUCTOS ==========
+
+            async function loadProductFormCategories(selectedCategory = '') {
+                const categorySelect = document.getElementById('prod-category');
+                const status = document.getElementById('prod-category-status');
+                const retryButton = document.getElementById('retry-product-categories');
+                if (!categorySelect || !status || !retryButton) return;
+
+                categorySelect.disabled = true;
+                status.textContent = 'Cargando categorías...';
+                retryButton.hidden = true;
+
+                try {
+                    const response = await fetch('/api/categorias');
+                    if (!response.ok) {
+                        throw new Error(await getErrorMessage(response, 'No se pudieron cargar las categorías'));
+                    }
+
+                    const categories = await response.json();
+                    if (!Array.isArray(categories)) {
+                        throw new Error('La respuesta de categorías no es válida');
+                    }
+
+                    const uniqueCategories = [...new Map(
+                        categories
+                            .filter((category) => typeof category === 'string' && category.trim())
+                            .map((category) => [category.trim().toLocaleLowerCase('es-AR'), category.trim()])
+                    ).values()];
+                    if (selectedCategory && !uniqueCategories.includes(selectedCategory)) {
+                        uniqueCategories.push(selectedCategory);
+                    }
+
+                    categorySelect.innerHTML = [
+                        '<option value="">Seleccionar categoría</option>',
+                        ...uniqueCategories.map((category) => `
+                            <option value="${escapeHtml(category)}" ${category === selectedCategory ? 'selected' : ''}>
+                                ${escapeHtml(category)}
+                            </option>
+                        `),
+                    ].join('');
+                    categorySelect.disabled = uniqueCategories.length === 0;
+                    status.textContent = uniqueCategories.length
+                        ? ''
+                        : 'No hay categorías disponibles para seleccionar.';
+                } catch (error) {
+                    categorySelect.innerHTML = '<option value="">Seleccionar categoría</option>';
+                    status.textContent = `No se pudieron cargar las categorías: ${error.message}`;
+                    retryButton.hidden = false;
+                }
+            }
             
             function openProductModal(product = null) {
                 const modal = document.getElementById('admin-modal');
@@ -1905,16 +2139,20 @@
                         </div>
                         <div class="form-group">
                             <label for="prod-category">Categoría *</label>
-                            <input type="text" id="prod-category" value="${isEdit ? escapeHtml(product.categoria || product.category || '') : ''}" required placeholder="Ej. Electrónica">
+                            <select id="prod-category" required disabled>
+                                <option value="">Seleccionar categoría</option>
+                            </select>
+                            <small id="prod-category-status" role="status" aria-live="polite">Cargando categorías...</small>
+                            <button type="button" id="retry-product-categories" class="btn-filter-secondary" hidden>Reintentar</button>
                         </div>
                         <div class="form-group">
                             <label for="prod-description">Descripción</label>
                             <textarea id="prod-description" rows="3" placeholder="Descripción del producto">${isEdit ? escapeHtml(product.descripcion || '') : ''}</textarea>
                         </div>
                         <div class="form-group">
-                            <label for="prod-image">URL de la Imagen</label>
+                            <label for="prod-image">Imágen</label>
                             <input type="text" id="prod-image" value="${isEdit ? escapeHtml(product.image || product.imagen || '') : ''}" placeholder="../img/producto.png">
-                            <small>Dejar vacío para usar imagen por defecto</small>
+                            <small>Ingresá el enlace de la imagen</small>
                         </div>
                     </form>
                 `;
@@ -1923,6 +2161,10 @@
                     event.preventDefault();
                     saveProduct(isEdit ? Number(product.id) : null);
                 });
+                modalBody.querySelector('#retry-product-categories').addEventListener('click', () => {
+                    loadProductFormCategories(product?.categoria || product?.category || '');
+                });
+                loadProductFormCategories(product?.categoria || product?.category || '');
                 
                 const footer = document.createElement('div');
                 footer.className = 'modal-footer';
@@ -2368,6 +2610,45 @@
             }
             
             // ========== FUNCIONES GENERALES ==========
+
+            function formatAdminCurrency(amount) {
+                return new Intl.NumberFormat('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                    maximumFractionDigits: 2
+                }).format(Number(amount) || 0);
+            }
+
+            function renderOrderStateBadge(state) {
+                const normalized = String(state || '').toLowerCase();
+                const stateClass = normalized === 'pagado'
+                    ? 'is-paid'
+                    : normalized === 'enviado'
+                        ? 'is-shipped'
+                        : normalized === 'entregado'
+                            ? 'is-delivered'
+                            : 'is-other';
+                return `<span class="order-state-badge ${stateClass}">${escapeHtml(state || 'Sin estado')}</span>`;
+            }
+
+            function renderOrderAction(orderId, state) {
+                const nextState = state === 'Pagado'
+                    ? 'Enviado'
+                    : state === 'Enviado'
+                        ? 'Entregado'
+                        : null;
+                if (!nextState) return '<span class="no-order-actions">Sin acciones disponibles</span>';
+
+                const actionLabel = nextState === 'Enviado'
+                    ? 'Marcar como enviado'
+                    : 'Marcar como entregado';
+                return `
+                    <select class="admin-order-action" data-order-id="${Number(orderId)}" aria-label="Acción para el pedido ${Number(orderId)}">
+                        <option value="">Seleccionar acción</option>
+                        <option value="${nextState}">${actionLabel}</option>
+                    </select>
+                `;
+            }
             
             async function loadAdminOrders() {
                 const container = document.getElementById('admin-orders-container');
@@ -2392,28 +2673,36 @@
                         <div class="admin-table-container">
                             <table class="admin-table">
                                 <thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th>Acción</th></tr></thead>
-                                <tbody>${orders.map((order) => {
-                                    const nextState = order.estado === 'Pagado' ? 'Enviado' : order.estado === 'Enviado' ? 'Entregado' : null;
-                                    return `<tr>
+                                <tbody>${orders.map((order) => `<tr data-order-row="${Number(order.id)}">
                                         <td>#${Number(order.id)}</td>
-                                        <td>${escapeHtml(order.cliente)}</td>
+                                        <td class="order-customer-cell">${order.clienteInfo
+                                            ? `<strong>${escapeHtml([order.clienteInfo.nombre, order.clienteInfo.apellido].filter(Boolean).join(' ') || 'Cliente no identificado')}</strong><span>${escapeHtml(order.clienteInfo.email || '')}</span>`
+                                            : '<strong>Cliente no identificado</strong>'}</td>
                                         <td>${escapeHtml(order.fecha)}</td>
-                                        <td>$${Number(order.total).toLocaleString('es-AR')}</td>
-                                        <td>${escapeHtml(order.estado)}</td>
-                                        <td>${nextState ? `<button class="btn-filter-primary" type="button" data-next-state="${escapeHtml(nextState)}" data-order-id="${Number(order.id)}">${escapeHtml(nextState)}</button>` : '—'}</td>
-                                    </tr>`;
-                                }).join('')}</tbody>
+                                        <td class="order-total-cell">${formatAdminCurrency(order.total)}</td>
+                                        <td class="order-state-cell">${renderOrderStateBadge(order.estado)}</td>
+                                        <td class="order-action-cell">${renderOrderAction(order.id, order.estado)}</td>
+                                    </tr>`).join('')}</tbody>
                             </table>
                         </div>`;
-                    container.querySelectorAll('[data-next-state]').forEach((button) => {
-                        button.addEventListener('click', () => updateAdminOrderState(button.dataset.orderId, button.dataset.nextState));
+                    container.querySelectorAll('.admin-order-action').forEach((select) => {
+                        select.addEventListener('change', () => updateAdminOrderState(select));
                     });
                 } catch (error) {
                     container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
                 }
             }
 
-            async function updateAdminOrderState(orderId, estado) {
+            async function updateAdminOrderState(select) {
+                const orderId = select.dataset.orderId;
+                const estado = select.value;
+                if (!estado) return;
+                if (!confirm(`¿${estado === 'Enviado' ? 'Marcar como enviado' : 'Marcar como entregado'} el pedido #${orderId}?`)) {
+                    select.value = '';
+                    return;
+                }
+
+                select.disabled = true;
                 try {
                     const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}`, {
                         method: 'PUT',
@@ -2423,9 +2712,43 @@
                     if (!response.ok) {
                         throw new Error(await getErrorMessage(response, 'No se pudo actualizar el estado'));
                     }
-                    showNotification(`Pedido actualizado a ${estado}`);
-                    await loadAdminOrders();
+                    const data = await response.json();
+                    const actualState = data.pedido?.estado || estado;
+                    const row = select.closest('tr');
+                    const stateCell = row?.querySelector('.order-state-cell');
+                    const actionCell = row?.querySelector('.order-action-cell');
+                    if (stateCell) stateCell.innerHTML = renderOrderStateBadge(actualState);
+                    if (actionCell) {
+                        actionCell.innerHTML = renderOrderAction(orderId, actualState);
+                        actionCell.querySelector('.admin-order-action')?.addEventListener('change', (event) => {
+                            updateAdminOrderState(event.currentTarget);
+                        });
+                    }
+                    showNotification(data.mensaje || `Pedido actualizado a ${actualState}`);
                 } catch (error) {
+                    select.disabled = false;
+                    select.value = '';
+                    try {
+                        const currentResponse = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}`, {
+                            headers: getAuthHeaders(),
+                            cache: 'no-store'
+                        });
+                        if (currentResponse.ok) {
+                            const currentOrder = await currentResponse.json();
+                            const row = select.closest('tr');
+                            const stateCell = row?.querySelector('.order-state-cell');
+                            const actionCell = row?.querySelector('.order-action-cell');
+                            if (stateCell) stateCell.innerHTML = renderOrderStateBadge(currentOrder.estado);
+                            if (actionCell) {
+                                actionCell.innerHTML = renderOrderAction(orderId, currentOrder.estado);
+                                actionCell.querySelector('.admin-order-action')?.addEventListener('change', (event) => {
+                                    updateAdminOrderState(event.currentTarget);
+                                });
+                            }
+                        }
+                    } catch (refreshError) {
+                        console.error('No se pudo actualizar el estado visible del pedido:', refreshError);
+                    }
                     showNotification(error.message, 'error');
                 }
             }

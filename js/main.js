@@ -64,6 +64,14 @@ function roundMoney(amount) {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
+function formatOrderCurrency(amount) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 2,
+  }).format(Number(amount) || 0);
+}
+
 function updateCartSummary() {
   const subtotalElement = document.getElementById('cart-subtotal');
   const discountElement = document.getElementById('cart-discount');
@@ -797,23 +805,27 @@ async function loadUserOrders() {
     container.innerHTML = data.map((order) => {
       const orderId = Number(order.id);
       const status = String(order.estado || '');
-      const isPending = status.toLowerCase() === 'pendiente';
+      const normalizedStatus = status.toLowerCase();
+      const isPending = normalizedStatus === 'pendiente';
       const isClient = localStorage.getItem('userRole') === 'client';
       const items = (order.detalles || []).map((detail) => `
         <li>
           <span>${escapeHtml(detail.nombreProducto)} x ${Number(detail.cantidad)}</span>
-          <span>$${Number(detail.subtotal).toLocaleString('es-AR')}</span>
+          <span>${formatOrderCurrency(detail.subtotal)}</span>
         </li>
       `).join('');
+      const statusClass = ['pendiente', 'pagado', 'enviado', 'entregado', 'cancelado'].includes(normalizedStatus)
+        ? `is-${normalizedStatus}`
+        : 'is-other';
       return `<article class="order-item">
         <div class="order-heading">
           <h3>Pedido #${orderId}</h3>
           <p>${escapeHtml(order.fecha)}</p>
-          <span class="order-status ${isPending ? 'is-pending' : 'is-closed'}">${escapeHtml(status)}</span>
+          <span class="order-status ${statusClass}">${escapeHtml(status || 'Sin estado')}</span>
         </div>
         <ul>${items}</ul>
         <div class="order-summary">
-          <strong>Total: $${Number(order.total).toLocaleString('es-AR')}</strong>
+          <strong>Total: ${formatOrderCurrency(order.total)}</strong>
           ${isPending && isClient ? `<div class="order-payment-actions">
             <label>Método
               <select data-payment-method="${orderId}">
@@ -824,7 +836,7 @@ async function loadUserOrders() {
             <label><input type="checkbox" data-payment-rejection="${orderId}"> Simular rechazo</label>
             <button type="button" class="btn-pay-order" data-pay-order="${orderId}">Pagar</button>
           </div>` : ''}
-          ${status.toLowerCase() === 'pagado' ? `<button type="button" class="btn-receipt" data-receipt-order="${orderId}">Ver comprobante</button>` : ''}
+          ${['pagado', 'enviado', 'entregado'].includes(normalizedStatus) ? `<button type="button" class="btn-receipt" data-receipt-order="${orderId}">Ver comprobante</button>` : ''}
           ${isPending ? `<button type="button" class="btn-cancel-order" data-cancel-order="${orderId}">Cancelar pedido</button>` : ''}
         </div>
       </article>`;
@@ -895,8 +907,8 @@ async function viewReceipt(orderId) {
       <tr>
         <td>${escapeHtml(item.nombreProducto)}</td>
         <td>${Number(item.cantidad)}</td>
-        <td>$${Number(item.precioUnitario).toLocaleString('es-AR')}</td>
-        <td>$${Number(item.subtotal).toLocaleString('es-AR')}</td>
+        <td>${formatOrderCurrency(item.precioUnitario)}</td>
+        <td>${formatOrderCurrency(item.subtotal)}</td>
       </tr>
     `).join('');
     const modal = document.createElement('div');
@@ -909,9 +921,9 @@ async function viewReceipt(orderId) {
         <p>Cliente: ${escapeHtml(receipt.cliente)}</p>
         <table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead>
         <tbody>${rows}</tbody></table>
-        <p>Subtotal: $${Number(receipt.subtotal).toLocaleString('es-AR')}</p>
-        <p>Descuento: -$${Number(receipt.descuento).toLocaleString('es-AR')}${receipt.cupon ? ` (${escapeHtml(receipt.cupon)})` : ''}</p>
-        <p><strong>Total pagado: $${Number(receipt.total).toLocaleString('es-AR')}</strong></p>
+        <p>Subtotal: ${formatOrderCurrency(receipt.subtotal)}</p>
+        <p>Descuento: -${formatOrderCurrency(receipt.descuento)}${receipt.cupon ? ` (${escapeHtml(receipt.cupon)})` : ''}</p>
+        <p><strong>Total pagado: ${formatOrderCurrency(receipt.total)}</strong></p>
         <p>Método: ${escapeHtml(receipt.metodoPago)} · Pago: ${escapeHtml(receipt.estadoPago)}</p>
         <button type="button" class="btn-buy receipt-print">Imprimir comprobante</button>
       </section>

@@ -17,22 +17,19 @@ El incremento visible está centrado en el flujo `Inicio -> Productos -> Detalle
 
 El checkout visible usa el endpoint dedicado `/api/pedidos/demo`, que comparte la validación de stock y la transacción Sequelize para crear `Pedido` y `DetallePedido`, pero no requiere iniciar sesión. La ruta autenticada existente `POST /api/pedidos` se conserva para el resto del sistema. JWT, roles y middlewares no se eliminaron.
 
-Las páginas web heredadas de administración, login y contacto redirigen al inicio en esta demo. Esto no elimina sus endpoints ni controladores.
+El panel administrativo y el login se sirven desde `/admin.html` y `/login.html`; el panel requiere una sesión con rol de administrador. La página de contacto continúa redirigiendo al inicio.
 
 ### Funcionalidades previstas para próximos sprints
 
-- Autenticación y login visible, roles y administración.
-- Alta, modificación y eliminación administrativa de productos.
 - Ordenamiento de productos.
-- Historial y cancelación de pedidos.
 - Gestión de usuarios y clientes.
 - Cupones, descuentos, exportaciones, tickets/facturación y otras herramientas administrativas.
 
-Estas funciones no se ofrecen en la interfaz de demostración. Sus rutas, modelos y lógica existente se conservan.
-
-Parte de la infraestructura de autenticación con JWT y roles ya se encuentra implementada internamente como trabajo técnico adelantado, aunque no forma parte del incremento funcional visible del Sprint 1.
+Las rutas y controladores existentes conservan la autenticación JWT y las reglas de autorización por rol.
 
 El campo opcional `descripcion` permite mostrar el detalle del producto; los productos existentes sin descripción muestran un texto alternativo. Los pedidos del checkout demo se identifican como `Compra de demostración` en el campo existente `Pedido.cliente`; no se agregan tablas ni se cambian las relaciones del modelo. El seed de productos actualiza ocho entradas de ejemplo en sitio, conservando sus IDs e imágenes existentes.
+
+La administración obtiene las categorías desde los productos existentes y el servidor rechaza categorías inexistentes al crear o editar. Los pedidos autenticados guardan el identificador de propietario existente `demo-user:<id>:<email>`; las respuestas administrativas resuelven nombre, apellido y correo desde el usuario identificado por ese ID, y el acceso del cliente se limita a sus propios pedidos. Los registros históricos con una dirección de correo como propietario también se reconocen; si un pedido no contiene un identificador resoluble, se presenta como cliente no identificado sin modificar ni descartar el dato histórico. Los comprobantes aprobados siguen disponibles para pedidos pagados, enviados y entregados.
 
 ### Inicio rápido
 
@@ -40,6 +37,7 @@ Tecnologías: Node.js, Express, Sequelize, SQLite, API REST, HTML, CSS, JavaScri
 
 ```bash
 npm install
+npm test
 ```
 
 Copiar `.env.example` como `.env` y configurar `JWT_SECRET` con un valor local propio. Luego iniciar:
