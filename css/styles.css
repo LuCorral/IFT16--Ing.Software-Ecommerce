@@ -2177,6 +2177,16 @@ nav ul li a:hover {
     gap: 8px;
 }
 
+.payment-demo-note {
+    flex: 0 0 100%;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #fff4e9;
+    color: #573614;
+    font-size: 0.9rem;
+}
+
 .order-payment-actions label {
     display: flex;
     align-items: center;

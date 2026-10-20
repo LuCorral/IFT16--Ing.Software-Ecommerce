@@ -6,6 +6,9 @@
   "scripts": {
     "test": "node --test",
     "start": "node server.js",
+    "migrate": "node scripts/run-migrations.js",
+    "db:backup": "node scripts/backup-db.js",
+    "seed:demo": "node scripts/seed-demo.js",
     "seed": "node seed_DB.js",
     "seed:coupons": "node seed_Cupones_DB.js",
     "seed:users": "node seed_Users_DB.js",
@@ -15,6 +18,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",

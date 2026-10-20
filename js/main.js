@@ -827,6 +827,7 @@ async function loadUserOrders() {
         <div class="order-summary">
           <strong>Total: ${formatOrderCurrency(order.total)}</strong>
           ${isPending && isClient ? `<div class="order-payment-actions">
+            <p class="payment-demo-note">Pago simulado: no se realiza ningún cargo real.</p>
             <label>Método
               <select data-payment-method="${orderId}">
                 <option value="tarjeta">Tarjeta</option>
@@ -917,6 +918,7 @@ async function viewReceipt(orderId) {
       <section class="receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
         <button type="button" class="receipt-close" aria-label="Cerrar">&times;</button>
         <h2 id="receipt-title">Comprobante ${escapeHtml(receipt.numero)}</h2>
+        <p><strong>${escapeHtml(receipt.tipo || 'Comprobante no fiscal')} · Pago simulado</strong></p>
         <p>Pedido #${Number(receipt.pedidoId)} · ${escapeHtml(new Date(receipt.fecha).toLocaleDateString('es-AR'))}</p>
         <p>Cliente: ${escapeHtml(receipt.cliente)}</p>
         <table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead>

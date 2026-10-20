@@ -1,0 +1,74 @@
+[
+  {
+    "nombre": "Aro de luz LED de escritorio con trípode",
+    "precio": 27990,
+    "categoria": "Accesorios",
+    "descripcion": "Iluminación regulable para videollamadas, lectura y trabajo en escritorio.",
+    "image": "/img/ArodeLuzLED.png",
+    "rating": 4.5,
+    "reviews": 310
+  },
+  {
+    "nombre": "Parlante Bluetooth compacto",
+    "precio": 42990,
+    "categoria": "Audio",
+    "descripcion": "Parlante portátil con conexión inalámbrica y batería recargable.",
+    "image": "/img/ParlanteBluetooth.png",
+    "rating": 4.8,
+    "reviews": 95
+  },
+  {
+    "nombre": "Auriculares deportivos inalámbricos",
+    "precio": 38990,
+    "categoria": "Audio",
+    "descripcion": "Auriculares Bluetooth livianos para escuchar música durante el día.",
+    "image": "/img/AuricularesBluetooth.png",
+    "rating": 4.2,
+    "reviews": 115
+  },
+  {
+    "nombre": "Teclado mecánico compacto",
+    "precio": 21990,
+    "categoria": "Periféricos",
+    "descripcion": "Teclado mecánico compacto para escritorios con espacio reducido.",
+    "image": "/img/TecladoMecanico.jpg",
+    "rating": 4.6,
+    "reviews": 138
+  },
+  {
+    "nombre": "Micrófono USB para streaming y videollamadas",
+    "precio": 49990,
+    "categoria": "Audio",
+    "descripcion": "Micrófono USB para mejorar la voz en transmisiones y videollamadas.",
+    "image": "/img/MicrofonoUSB.jpg",
+    "rating": 4.7,
+    "reviews": 96
+  },
+  {
+    "nombre": "Cámara de seguridad interior Wi-Fi",
+    "precio": 39990,
+    "categoria": "Hogar conectado",
+    "descripcion": "Cámara interior Wi-Fi para supervisar ambientes del hogar desde el celular.",
+    "image": "/img/CamaraInteriorWifi.jpg",
+    "rating": 4.5,
+    "reviews": 112
+  },
+  {
+    "nombre": "Batería portátil Powerbank 20000 mAh",
+    "precio": 42990,
+    "categoria": "Accesorios",
+    "descripcion": "Batería portátil de alta capacidad para cargar dispositivos durante el día.",
+    "image": "/img/Powerbank20000mAh.png",
+    "rating": 4.7,
+    "reviews": 412
+  },
+  {
+    "nombre": "Enchufe inteligente Wi-Fi",
+    "precio": 12990,
+    "categoria": "Hogar conectado",
+    "descripcion": "Enchufe Wi-Fi para controlar dispositivos del hogar desde una aplicación.",
+    "image": "/img/EnchufeInteligenteWifi.jpg",
+    "rating": 4.4,
+    "reviews": 126
+  }
+]

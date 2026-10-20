@@ -362,8 +362,13 @@ const pedidoController = {
         mensaje: result.pago.estado === 'Aprobado' ? 'Pago aprobado' : 'Pago rechazado; el pedido continúa pendiente',
         pago: result.pago,
         estadoPedido: result.estadoPedido,
+        simulado: true,
         comprobante: result.comprobante
-          ? { id: result.comprobante.id, numero: `COMP-${String(result.comprobante.id).padStart(8, '0')}` }
+          ? {
+            id: result.comprobante.id,
+            numero: `COMP-${String(result.comprobante.id).padStart(8, '0')}`,
+            tipo: result.comprobante.tipo_factura,
+          }
           : null,
       });
     } catch (error) {
@@ -402,6 +407,8 @@ const pedidoController = {
         total: comprobante.total,
         metodoPago: comprobante.metodo_pago,
         estadoPago: comprobante.estado_pago,
+        tipo: comprobante.tipo_factura,
+        simulado: true,
       });
     } catch (error) {
       res.status(500).json({ mensaje: 'Error al consultar el comprobante', error: error.message });

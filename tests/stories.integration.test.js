@@ -205,7 +205,10 @@ test('historias de categorías, pedidos, permisos, estados y comprobantes', asyn
       body: JSON.stringify({ metodo: 'tarjeta', resultadoSimulado: 'aprobado' }),
     });
     assert.equal(payResponse.status, 200);
-    assert.equal((await payResponse.json()).estadoPedido, 'Pagado');
+    const simulatedPayment = await payResponse.json();
+    assert.equal(simulatedPayment.estadoPedido, 'Pagado');
+    assert.equal(simulatedPayment.simulado, true);
+    assert.equal(simulatedPayment.comprobante.tipo, 'Comprobante no fiscal');
 
     const clientTransition = await request(`/api/pedidos/${orderId}`, {
       method: 'PUT',
@@ -223,6 +226,7 @@ test('historias de categorías, pedidos, permisos, estados y comprobantes', asyn
 
     const pagadoReceipt = await request(`/api/pedidos/${orderId}/comprobante`, { headers: auth(client) });
     assert.equal(pagadoReceipt.status, 200);
+    assert.equal((await pagadoReceipt.clone().json()).simulado, true);
 
     const unauthorizedReceipt = await request(`/api/pedidos/${orderId}/comprobante`);
     assert.equal(unauthorizedReceipt.status, 401);
