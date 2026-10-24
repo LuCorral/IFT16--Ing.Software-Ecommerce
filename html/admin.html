@@ -2708,26 +2708,34 @@
                 return `<span class="order-state-badge ${stateClass}">${escapeHtml(state || 'Sin estado')}</span>`;
             }
 
-            function renderOrderAction(orderId, state) {
-                const nextState = state === 'Pagado'
-                    ? 'Enviado'
-                    : state === 'Enviado'
-                        ? 'Entregado'
-                        : null;
-                if (!nextState) return '<span class="no-order-actions">Sin acciones disponibles</span>';
-
-                const actionLabel = nextState === 'Enviado'
-                    ? 'Marcar como enviado'
-                    : 'Marcar como entregado';
-                return `
-                    <select class="admin-order-action" data-order-id="${Number(orderId)}" aria-label="Acción para el pedido ${Number(orderId)}">
-                        <option value="">Seleccionar acción</option>
-                        <option value="${nextState}">${actionLabel}</option>
-                    </select>
-                `;
-            }
             
-            async function loadAdminOrders() {
+function renderOrderAction(orderId, state) {
+  const states = ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'];
+  const current = states.find(
+    value => value.toLowerCase() === String(state).toLowerCase()
+  );
+  const next = {
+    Pagado: 'Enviado',
+    Enviado: 'Entregado'
+  }[current];
+
+  return `
+    <select class="admin-order-action"
+            data-order-id="${Number(orderId)}"
+            aria-label="Estado del pedido ${Number(orderId)}">
+      <option value="">Seleccionar estado</option>
+      ${states.map(value => `
+        <option value="${value}"
+                ${value === current ? 'selected' : ''}
+                ${value !== next ? 'disabled' : ''}>
+          ${value}${value === current ? ' (actual)' : ''}
+        </option>
+      `).join('')}
+    </select>
+  `;
+}
+
+async function loadAdminOrders() {
                 const container = document.getElementById('admin-orders-container');
                 if (!container) return;
                 container.innerHTML = '<div class="loading-spinner"><p>Cargando pedidos...</p></div>';
