@@ -1,11 +1,14 @@
-// server.js - Versión corregida
-require("dotenv").config();
+const path = require("node:path");
+const fs = require("node:fs");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
-const path = require("path");
 const cors = require("cors");
 
 const sequelize = require("./src/config/database");
+const { validateEnvironment } = require("./src/config/env");
+const { initializeDatabase } = require("./src/config/migrations");
+require("./src/models");
 
 const productosRoutes = require("./src/routes/productosRoutes");
 const categoriasRoutes = require("./src/routes/categoriasRoutes");
@@ -21,11 +24,23 @@ const { authenticateToken, isAdmin } = require("./src/middlewares/authMiddleware
 require("./src/models/User");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+if (process.env.NODE_ENV !== "production") {
+  app.use(cors());
+}
 app.use(express.json());
+
+function getReleaseCommit() {
+  const commitFile = path.join(__dirname, "DEPLOY_COMMIT");
+  return fs.existsSync(commitFile)
+    ? fs.readFileSync(commitFile, "utf8").trim()
+    : "local";
+}
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", commit: getReleaseCommit() });
+});
 
 app.get('/html/contacto.html', (req, res) => res.redirect('/'));
 
@@ -80,13 +95,25 @@ app.use("/api/pedidos", pedidoRoutes);
 app.use("/api/detalles-pedido", authenticateToken, isAdmin, detallePedidoRoutes);
 app.use("/api/tickets", authenticateToken, isAdmin, ticketsRoutes);
 
-// Iniciar servidor
-sequelize.sync({ alter: true })
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor en http://localhost:${PORT}`);
+async function startServer() {
+  const { host, port } = validateEnvironment();
+  await initializeDatabase(sequelize);
+
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, host, () => {
+      console.info(`Ecommerce listening on ${host}:${port} (commit ${getReleaseCommit()})`);
+      resolve(server);
     });
-  })
-  .catch((error) => {
-    console.error("Error:", error);
+    server.once("error", reject);
   });
+}
+
+if (require.main === module) {
+  startServer().catch(async (error) => {
+    console.error(`Ecommerce startup failed: ${error.message}`);
+    await sequelize.close();
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { app, startServer };

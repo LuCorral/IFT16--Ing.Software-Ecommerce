@@ -10,18 +10,52 @@ const sequelize = require('../config/database');
 
 const getOwnerTag = (user) => `demo-user:${user.id}:${user.email}`;
 const roundMoney = (amount) => Math.round((amount + Number.EPSILON) * 100) / 100;
-const canAccessOrder = (user, pedido) =>
-  user.role === 'admin' || pedido.cliente === getOwnerTag(user);
+const canAccessOrder = (user, pedido) => {
+  const taggedOwner = typeof pedido.cliente === 'string'
+    ? pedido.cliente.match(/^demo-user:(\d+):/)
+    : null;
+  return user.role === 'admin'
+    || (taggedOwner && Number(taggedOwner[1]) === Number(user.id))
+    || pedido.cliente === user.email;
+};
+
+const getOrderCustomer = async (ownerTag) => {
+  if (typeof ownerTag !== 'string') return null;
+
+  const taggedOwner = ownerTag.match(/^demo-user:(\d+):/);
+  const user = taggedOwner
+    ? await User.findByPk(Number(taggedOwner[1]), {
+      attributes: ['name', 'apellido', 'email'],
+    })
+    : await User.findOne({
+      where: { email: ownerTag },
+      attributes: ['name', 'apellido', 'email'],
+    });
+
+  if (!user) return null;
+  return { nombre: user.name, apellido: user.apellido, email: user.email };
+};
+
+const orderResponse = (pedido, clienteInfo = null) => {
+  const data = pedido.toJSON();
+  delete data.cliente;
+  return { ...data, clienteInfo };
+};
 
 const pedidoController = {
   getAll: async (req, res) => {
     try {
       const where = req.user.role === 'admin'
         ? {}
-        : { cliente: getOwnerTag(req.user) };
+        : {
+          [Op.or]: [
+            { cliente: { [Op.like]: `demo-user:${Number(req.user.id)}:%` } },
+            { cliente: req.user.email },
+          ],
+        };
       const pedidos = await Pedido.findAll({ where, order: [['id', 'DESC']] });
       const pedidosConDetalles = await Promise.all(pedidos.map(async (pedido) => ({
-        ...pedido.toJSON(),
+        ...orderResponse(pedido, await getOrderCustomer(pedido.cliente)),
         detalles: await DetallePedido.findAll({ where: { pedidoId: pedido.id } }),
       })));
       res.json(pedidosConDetalles);
@@ -47,7 +81,7 @@ const pedidoController = {
       });
 
       res.json({
-        ...pedido.toJSON(),
+        ...orderResponse(pedido, await getOrderCustomer(pedido.cliente)),
         detalles
       });
     } catch (error) {
@@ -161,7 +195,11 @@ const pedidoController = {
       const detalles = await DetallePedido.findAll({ where: { pedidoId: pedidoCreado.id } });
       res.status(201).json({
         mensaje: 'Pedido creado correctamente',
-        pedido: pedidoCreado,
+        pedido: orderResponse(pedidoCreado, {
+          nombre: req.user.name,
+          apellido: req.user.apellido,
+          email: req.user.email,
+        }),
         detalles,
         subtotal: pedidoCreado.getDataValue('subtotal'),
         descuento: pedidoCreado.getDataValue('descuento'),
@@ -324,8 +362,13 @@ const pedidoController = {
         mensaje: result.pago.estado === 'Aprobado' ? 'Pago aprobado' : 'Pago rechazado; el pedido continúa pendiente',
         pago: result.pago,
         estadoPedido: result.estadoPedido,
+        simulado: true,
         comprobante: result.comprobante
-          ? { id: result.comprobante.id, numero: `COMP-${String(result.comprobante.id).padStart(8, '0')}` }
+          ? {
+            id: result.comprobante.id,
+            numero: `COMP-${String(result.comprobante.id).padStart(8, '0')}`,
+            tipo: result.comprobante.tipo_factura,
+          }
           : null,
       });
     } catch (error) {
@@ -342,7 +385,7 @@ const pedidoController = {
       if (!pedido || !canAccessOrder(req.user, pedido)) {
         return res.status(404).json({ mensaje: 'Comprobante no encontrado' });
       }
-      if (pedido.estado !== 'Pagado') {
+      if (!['pagado', 'enviado', 'entregado'].includes(String(pedido.estado).toLowerCase())) {
         return res.status(404).json({ mensaje: 'El pedido todavía no tiene comprobante pagado' });
       }
 
@@ -364,6 +407,8 @@ const pedidoController = {
         total: comprobante.total,
         metodoPago: comprobante.metodo_pago,
         estadoPago: comprobante.estado_pago,
+        tipo: comprobante.tipo_factura,
+        simulado: true,
       });
     } catch (error) {
       res.status(500).json({ mensaje: 'Error al consultar el comprobante', error: error.message });
@@ -372,31 +417,51 @@ const pedidoController = {
 
   update: async (req, res) => {
     try {
-      const pedido = await Pedido.findByPk(req.params.id);
-
-      if (!pedido) {
-        return res.status(404).json({ mensaje: 'Pedido no encontrado' });
-      }
-
       const transiciones = {
         Pagado: 'Enviado',
         Enviado: 'Entregado',
       };
-      const siguienteEstado = transiciones[pedido.estado];
-      if (!siguienteEstado || req.body.estado !== siguienteEstado) {
-        return res.status(400).json({
-          mensaje: `Transición de estado no permitida desde ${pedido.estado}`,
-        });
-      }
+      const pedido = await sequelize.transaction(async (transaction) => {
+        const pedidoActual = await Pedido.findByPk(req.params.id, { transaction });
+        if (!pedidoActual) {
+          const error = new Error('Pedido no encontrado');
+          error.status = 404;
+          throw error;
+        }
 
-      await pedido.update({ estado: siguienteEstado });
+        const siguienteEstado = transiciones[pedidoActual.estado];
+        if (!siguienteEstado || req.body.estado !== siguienteEstado) {
+          const error = new Error(`Transición de estado no permitida desde ${pedidoActual.estado}`);
+          error.status = 400;
+          throw error;
+        }
+
+        const [actualizado] = await Pedido.update(
+          { estado: siguienteEstado },
+          {
+            where: { id: pedidoActual.id, estado: pedidoActual.estado },
+            transaction,
+          },
+        );
+        if (!actualizado) {
+          const error = new Error('El pedido cambió de estado; actualizá la lista e intentá nuevamente');
+          error.status = 409;
+          throw error;
+        }
+
+        pedidoActual.estado = siguienteEstado;
+        return pedidoActual;
+      });
 
       res.json({
         mensaje: 'Pedido actualizado correctamente',
-        pedido
+        pedido: orderResponse(pedido),
       });
     } catch (error) {
-      res.status(500).json({ mensaje: 'Error al actualizar el pedido', error: error.message });
+      res.status(error.status || 500).json({
+        mensaje: error.status ? error.message : 'Error al actualizar el pedido',
+        ...(error.status ? {} : { error: error.message }),
+      });
     }
   },
 

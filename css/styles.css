@@ -404,12 +404,15 @@ main {
     transition: transform 0.3s ease;
 }
 
-.notification.not-error {
-    background: var(--danger-color);
+.notification.not-error,
+.notification.notif-error {
+    background: #a12626;
+    color: #fff;
 }
 
 .notification.notif-success {
-    background: var(--success-color);
+    background: #216e45;
+    color: #fff;
 }
 
 .notification.show {
@@ -2174,6 +2177,16 @@ nav ul li a:hover {
     gap: 8px;
 }
 
+.payment-demo-note {
+    flex: 0 0 100%;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #fff4e9;
+    color: #573614;
+    font-size: 0.9rem;
+}
+
 .order-payment-actions label {
     display: flex;
     align-items: center;
@@ -2308,6 +2321,24 @@ footer p {
     background: #e8efec;
     color: #50615b;
 }
+.order-status.is-pendiente {
+    background: #fff2d6;
+    color: #704f12;
+}
+.order-status.is-pagado,
+.order-status.is-entregado {
+    background: #e4f3e9;
+    color: #1e5d37;
+}
+.order-status.is-enviado {
+    background: #e5eef9;
+    color: #244f7a;
+}
+.order-status.is-cancelado,
+.order-status.is-other {
+    background: #fdebea;
+    color: #8b2d27;
+}
 .order-item ul {
     display: grid;
     gap: 6px;
@@ -2320,6 +2351,14 @@ footer p {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+}
+.order-item li span:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.order-item li span:last-child {
+    flex-shrink: 0;
+    text-align: right;
 }
 .order-summary {
     flex-direction: column;

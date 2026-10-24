@@ -17,38 +17,42 @@ El incremento visible está centrado en el flujo `Inicio -> Productos -> Detalle
 
 El checkout visible usa el endpoint dedicado `/api/pedidos/demo`, que comparte la validación de stock y la transacción Sequelize para crear `Pedido` y `DetallePedido`, pero no requiere iniciar sesión. La ruta autenticada existente `POST /api/pedidos` se conserva para el resto del sistema. JWT, roles y middlewares no se eliminaron.
 
-Las páginas web heredadas de administración, login y contacto redirigen al inicio en esta demo. Esto no elimina sus endpoints ni controladores.
+El panel administrativo y el login se sirven desde `/admin.html` y `/login.html`; el panel requiere una sesión con rol de administrador. La página de contacto continúa redirigiendo al inicio.
 
 ### Funcionalidades previstas para próximos sprints
 
-- Autenticación y login visible, roles y administración.
-- Alta, modificación y eliminación administrativa de productos.
 - Ordenamiento de productos.
-- Historial y cancelación de pedidos.
 - Gestión de usuarios y clientes.
 - Cupones, descuentos, exportaciones, tickets/facturación y otras herramientas administrativas.
 
-Estas funciones no se ofrecen en la interfaz de demostración. Sus rutas, modelos y lógica existente se conservan.
-
-Parte de la infraestructura de autenticación con JWT y roles ya se encuentra implementada internamente como trabajo técnico adelantado, aunque no forma parte del incremento funcional visible del Sprint 1.
+Las rutas y controladores existentes conservan la autenticación JWT y las reglas de autorización por rol.
 
 El campo opcional `descripcion` permite mostrar el detalle del producto; los productos existentes sin descripción muestran un texto alternativo. Los pedidos del checkout demo se identifican como `Compra de demostración` en el campo existente `Pedido.cliente`; no se agregan tablas ni se cambian las relaciones del modelo. El seed de productos actualiza ocho entradas de ejemplo en sitio, conservando sus IDs e imágenes existentes.
+
+La administración obtiene las categorías desde los productos existentes y el servidor rechaza categorías inexistentes al crear o editar. Los pedidos autenticados guardan el identificador de propietario existente `demo-user:<id>:<email>`; las respuestas administrativas resuelven nombre, apellido y correo desde el usuario identificado por ese ID, y el acceso del cliente se limita a sus propios pedidos. Los registros históricos con una dirección de correo como propietario también se reconocen; si un pedido no contiene un identificador resoluble, se presenta como cliente no identificado sin modificar ni descartar el dato histórico. Los comprobantes aprobados siguen disponibles para pedidos pagados, enviados y entregados.
 
 ### Inicio rápido
 
 Tecnologías: Node.js, Express, Sequelize, SQLite, API REST, HTML, CSS, JavaScript y JWT.
 
 ```bash
-npm install
+npm ci
+npm test
 ```
 
-Copiar `.env.example` como `.env` y configurar `JWT_SECRET` con un valor local propio. Luego iniciar:
+Usar Node.js 22. Copiar `.env.example` como `.env` y reemplazar `JWT_SECRET` por un valor aleatorio de al menos 32 caracteres. Para generarlo:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
+```
+
+Luego iniciar:
 
 ```bash
 npm start
 ```
 
-Abrir `http://localhost:3000`. El inicio sincroniza los modelos con SQLite mediante el `sequelize.sync({ alter: true })` existente. Para cargar o actualizar los productos de ejemplo, ejecutar `npm run seed`; el seed actualiza ocho productos de la lista existente sin eliminar filas ni cambiar sus IDs.
+Abrir `http://localhost:3000`. El servidor crea tablas faltantes y aplica migraciones versionadas; no ejecuta `sync({ alter: true })` ni seeds al arrancar. Para poblar una base de demostración de forma explícita e idempotente, seguir la sección **Demo pública y despliegues**.
 
 ---
 
@@ -214,29 +218,13 @@ Crear un archivo `.env` en la raíz del proyecto:
 ```env
 PORT=3000
 DB_DIALECT=sqlite
-DB_STORAGE=./ecommerce.sqlite
-JWT_SECRET=clave_local_para_desarrollo
+DB_STORAGE=./data/ecommerce.sqlite
+JWT_SECRET=<valor-aleatorio-privado-de-32-caracteres-o-mas>
 ```
 
 El archivo `.env` no debe subirse al repositorio.
 
-### 4. Crear o actualizar la base local
-
-Se pueden ejecutar los seeds por separado:
-
-```bash
-npm run seed:coupons
-npm run seed
-npm run seed:users
-```
-
-O correr el flujo completo:
-
-```bash
-npm run seed:all
-```
-
-### 5. Levantar el servidor
+### 4. Levantar el servidor
 
 ```bash
 npm start
@@ -257,10 +245,10 @@ Importante: abrir la aplicación desde `http://localhost:3000`, no haciendo dobl
 ```json
 {
   "start": "node server.js",
-  "seed": "node seed_DB.js",
-  "seed:coupons": "node seed_Cupones_DB.js",
-  "seed:users": "node seed_Users_DB.js",
-  "seed:all": "node seed_Cupones_DB.js && node seed_DB.js && node seed_Users_DB.js"
+  "test": "node --test",
+  "migrate": "node scripts/run-migrations.js",
+  "db:backup": "node scripts/backup-db.js",
+  "seed:demo": "node scripts/seed-demo.js"
 }
 ```
 
@@ -276,17 +264,9 @@ La API utiliza autenticación con **JWT** y autorización por rol.
 - Roles disponibles: `admin` y `client`.
 - Los tokens de login vencen luego de `2h`.
 
-### Usuarios de prueba
+### Usuarios de demostración
 
-```text
-Administrador:
-email: admin@example.com
-password: 123456
-
-Cliente:
-email: cliente@example.com
-password: 123456
-```
+Las cuentas se crean mediante `npm run seed:demo` con credenciales privadas ingresadas en el entorno. El repositorio no publica contraseñas predeterminadas.
 
 ---
 
@@ -302,12 +282,12 @@ GET  /api/auth/profile
 
 `GET /api/auth/profile` requiere JWT y devuelve el perfil del usuario autenticado.
 
-Ejemplo de login:
+Ejemplo de login (usar credenciales propias, nunca una contraseña publicada):
 
 ```json
 {
-  "email": "admin@example.com",
-  "password": "123456"
+  "email": "demo-admin@example.invalid",
+  "password": "<contraseña-privada>"
 }
 ```
 
@@ -317,7 +297,7 @@ Ejemplo de registro:
 {
   "name": "Cliente Nuevo",
   "email": "cliente.nuevo@example.com",
-  "password": "123456",
+  "password": "<contraseña-privada>",
   "telefono": "1122334455"
 }
 ```
@@ -498,7 +478,7 @@ $login = Invoke-RestMethod `
   -Uri http://localhost:3000/api/auth/login `
   -Method POST `
   -ContentType "application/json" `
-  -Body '{"email":"admin@example.com","password":"123456"}'
+  -Body (@{ email = $env:DEMO_ADMIN_EMAIL; password = $env:DEMO_ADMIN_PASSWORD } | ConvertTo-Json)
 
 $token = $login.token
 ```
@@ -563,3 +543,148 @@ Invoke-RestMethod "http://localhost:3000/api/cupones/aplicar/BIENVENIDA10?monto=
 - Ignacio Vidal
 
 ---
+
+## Demo pública y despliegues
+
+### Hosting evaluado: alwaysdata Free
+
+La oferta oficial Free figura a **0 €/mes**, para necesidades personales, con 1 GB de almacenamiento SSD, 256 MB de RAM, 1/4 de CPU y tres días de copias de respaldo. La documentación oficial incluye sitios Node.js, acceso SSH, variables de entorno por sitio, reinicio vía API y HTTPS para direcciones `*.alwaysdata.net`. Es suficiente para una demostración académica pequeña y no es una prueba temporal de un plan pago. Respetá la condición de uso personal y los límites de recursos; el almacenamiento y la CPU son modestos.
+
+Fuentes oficiales consultadas:
+
+- [Ofertas y plan Free](https://www.alwaysdata.com/en/offers/)
+- [Configuración de Node.js](https://help.alwaysdata.com/en/docs/web-hosting/languages/nodejs/configuration/)
+- [Agregar un sitio web](https://help.alwaysdata.com/en/docs/web-hosting/sites/add-a-site/)
+- [Reinicio de un sitio](https://help.alwaysdata.com/en/docs/web-hosting/sites/restart-a-site/)
+- [API de alwaysdata](https://help.alwaysdata.com/en/docs/development/api/)
+- [SSH y claves](https://help.alwaysdata.com/en/docs/web-hosting/remote-access/ssh/)
+- [Certificados Let's Encrypt y direcciones alwaysdata.net](https://help.alwaysdata.com/en/docs/web-hosting/sites/ssl-tls/lets-encrypt/)
+- [Copias de respaldo del proveedor](https://help.alwaysdata.com/en/docs/web-hosting/backups/)
+- [Tokens de acceso a la API](https://help.alwaysdata.com/en/docs/admin-billing/profile/tokens/)
+
+### Preparación inicial del hosting (una sola vez)
+
+1. Crear una cuenta Free de alwaysdata y usar la dirección `https://<cuenta>.alwaysdata.net`. La dirección `*.alwaysdata.net` usa el certificado comodín HTTPS del proveedor.
+2. En **Web > Sites**, agregar un sitio de tipo **Node.js** para esa dirección. Elegir Node.js 22 y configurar el comando de inicio equivalente a:
+
+   ```text
+   node /home/<cuenta>/apps/ecommerce/current/server.js
+   ```
+
+   El sitio debe proporcionar el `IP`/`HOST` interno y `PORT` indicados por alwaysdata. El servidor los consume para escuchar en el puerto asignado.
+3. Crear por SSH los directorios persistentes y de releases:
+
+   ```bash
+   mkdir -p /home/<cuenta>/apps/ecommerce/releases
+   mkdir -p /home/<cuenta>/data
+   ```
+
+4. Configurar en el entorno del sitio, no en el repositorio:
+
+   ```text
+   NODE_ENV=production
+   NODEJS_VERSION=22
+   DB_DIALECT=sqlite
+   DB_STORAGE=/home/<cuenta>/data/ecommerce.sqlite
+   JWT_SECRET=<valor aleatorio privado, mínimo 32 caracteres>
+   IP=<IP interna asignada por alwaysdata>
+   PORT=<puerto asignado por alwaysdata>
+   ```
+
+   Generá el secreto localmente con `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"` y pegalo directamente en la configuración del sitio. No lo agregues a GitHub ni a `.env.example`. La ruta de SQLite queda fuera de `apps/ecommerce`, por lo que no se reemplaza al desplegar.
+5. En **Remote Access > SSH/SFTP**, habilitar un usuario de despliegue y cargar una clave pública ED25519. El servidor SSH usa el host `ssh-<cuenta>.alwaysdata.net` y el puerto 22. Verificá su fingerprint desde el panel antes de guardar el `known_hosts` utilizado por Actions.
+6. Crear un token de API alwaysdata para reiniciar solo el sitio. alwaysdata requiere 2FA para crear tokens y un token hereda los permisos de su perfil; asignale a ese perfil solamente los permisos necesarios.
+7. En GitHub, ir a **Settings > Secrets and variables > Actions** y configurar:
+
+   **Repository variables** (son rutas/identificadores, no credenciales):
+
+   | Nombre | Valor |
+   |---|---|
+   | `ALWAYSDATA_ACCOUNT` | Nombre de la cuenta alwaysdata |
+   | `ALWAYSDATA_SSH_HOST` | `ssh-<cuenta>.alwaysdata.net` |
+   | `ALWAYSDATA_SSH_USER` | Usuario SSH creado para Actions |
+   | `ALWAYSDATA_SITE_ID` | ID numérico del sitio en **Web > Sites** |
+   | `ALWAYSDATA_APP_DIR` | `/home/<cuenta>/apps/ecommerce` |
+   | `ALWAYSDATA_DB_STORAGE` | `/home/<cuenta>/data/ecommerce.sqlite` |
+   | `DEMO_PUBLIC_URL` | `https://<cuenta>.alwaysdata.net` |
+
+   **Repository secrets**:
+
+   | Nombre | Valor |
+   |---|---|
+   | `ALWAYSDATA_SSH_PRIVATE_KEY` | Clave privada ED25519 dedicada a Actions |
+   | `ALWAYSDATA_SSH_KNOWN_HOSTS` | Línea `known_hosts` con el fingerprint del servidor ya verificado |
+   | `ALWAYSDATA_API_TOKEN` | Token API del perfil mínimo indicado arriba |
+
+   Las dos rutas deben coincidir exactamente con las configuradas en el sitio. No guardes `JWT_SECRET`, contraseñas de usuarios ni bases de datos en GitHub.
+
+### Datos de demo
+
+La operación es explícita; no se ejecuta al iniciar ni al desplegar:
+
+```bash
+cd /home/<cuenta>/apps/ecommerce/current
+```
+
+Antes de ejecutarla por SSH, cargá en esa sesión `DEMO_ADMIN_EMAIL`, `DEMO_ADMIN_PASSWORD`, `DEMO_CLIENT_EMAIL` y `DEMO_CLIENT_PASSWORD` con direcciones propias y contraseñas de al menos 12 caracteres. No las guardes en el repositorio, en el workflow ni en los logs. Luego:
+
+```bash
+read -r -p "Admin email: " DEMO_ADMIN_EMAIL
+read -r -s -p "Admin password: " DEMO_ADMIN_PASSWORD; printf '\n'
+read -r -p "Client email: " DEMO_CLIENT_EMAIL
+read -r -s -p "Client password: " DEMO_CLIENT_PASSWORD; printf '\n'
+export DEMO_ADMIN_EMAIL DEMO_ADMIN_PASSWORD DEMO_CLIENT_EMAIL DEMO_CLIENT_PASSWORD
+DB_STORAGE=/home/<cuenta>/data/ecommerce.sqlite npm run seed:demo
+unset DEMO_ADMIN_EMAIL DEMO_ADMIN_PASSWORD DEMO_CLIENT_EMAIL DEMO_CLIENT_PASSWORD
+```
+
+El proceso crea las dos cuentas y los productos de `src/data/demo-products.json` solo si todavía no existen. Repetirlo no reinicia stock, contraseñas ni datos existentes; una cuenta preexistente con rol incompatible causa un error explícito. Los pagos siguen siendo simulados y el comprobante se identifica como no fiscal. No hay envío de correo configurado.
+
+### Flujo de GitHub Actions
+
+El workflow `.github/workflows/deploy-demo.yml` ejecuta `npm ci` y `npm test` en Pull Requests a `main` y en pushes a `main`. Solo el evento `push` de `main` despliega; por lo tanto, el merge del Pull Request inicia el despliegue y las ramas de trabajo no publican al sitio.
+
+La automatización:
+
+1. Sube el commit a un directorio nuevo `releases/<SHA>` y excluye `.env`, bases SQLite, pruebas y `node_modules`.
+2. Instala las dependencias con Node.js 22 en el hosting. Antes de una migración pendiente, la app crea una copia SQLite consistente; luego ejecuta la migración.
+3. Activa el release con un cambio atómico del enlace `current`, reinicia el sitio mediante la API oficial de alwaysdata y consulta `/health` por HTTPS.
+4. `/health` devuelve únicamente estado y SHA desplegado; el mismo SHA queda registrado en el log de inicio.
+5. Si el reinicio o la comprobación de salud falla y existe una versión anterior, vuelve al enlace anterior y solicita su reinicio. El job queda fallido. Una primera publicación no tiene todavía un release anterior al cual volver.
+6. Tras una verificación exitosa, conserva el release actual y los dos anteriores. SQLite, configuración del sitio y copias `.bak` quedan fuera del directorio reemplazado.
+
+La concurrencia del workflow impide que dos despliegues al sitio principal se ejecuten simultáneamente. Se recomienda configurar reglas de protección de rama en GitHub para exigir que pase el job **Tests** antes de permitir el merge.
+
+### Migraciones, respaldo y recuperación
+
+El arranque usa `sequelize.sync()` sin `alter: true`: crea tablas faltantes, pero no modifica automáticamente tablas existentes. Los cambios de esquema deben agregarse como archivos ordenados en `src/migrations/`, en forma compatible y no destructiva. El runner registra lo aplicado en `SchemaMigrations`; antes de aplicar migraciones pendientes sobre un archivo ya existente, crea un respaldo SQLite en el mismo directorio persistente. `npm run migrate` permite aplicar el mismo proceso de forma manual.
+
+Para hacer un respaldo adicional en cualquier momento:
+
+```bash
+DB_STORAGE=/home/<cuenta>/data/ecommerce.sqlite npm run db:backup
+```
+
+La oferta Free mantiene además los respaldos del proveedor por tres días. Antes de recuperar manualmente, detené el sitio en **Web > Sites** para no dejar escrituras activas; preservá el archivo actual y restaurá una copia consistente:
+
+```bash
+cd /home/<cuenta>/data
+mv ecommerce.sqlite ecommerce.sqlite.failed
+cp ecommerce.sqlite.<fecha>.bak ecommerce.sqlite
+```
+
+Después iniciá/reiniciá el sitio. También se puede usar **Advanced > Restore backups** para recuperar los respaldos gestionados por alwaysdata.
+
+El rollback automático cambia el código, no deshace migraciones ni restaura datos. Las migraciones incluidas son aditivas; mantené ese requisito para que el código anterior siga siendo compatible. Para cambios destructivos o incompatibles, primero diseñá una migración en etapas y un plan de restauración manual. Los archivos SQLite locales no se suben ni se copian al hosting.
+
+### Verificación del despliegue
+
+Después de configurar la cuenta y los valores de GitHub:
+
+1. Abrí `https://<cuenta>.alwaysdata.net/health`; debe devolver `status: "ok"` y el commit activo.
+2. Creá y autenticá cuentas cliente desde navegadores distintos; verificá perfil, catálogo, carrito, pedido, pago simulado e historial.
+3. Comprobá que un cliente no pueda acceder a un pedido ajeno ni a las rutas administrativas; ingresá con la cuenta admin creada explícitamente.
+4. Reiniciá el sitio desde el panel y verificá que usuarios y pedidos sigan disponibles.
+5. Tras tener un Pull Request aprobado, fusioná una actualización inocua a `main`; verificá que el workflow finalice y que `/health` muestre el SHA nuevo sin perder datos.
+
+Todavía no se realizó un despliegue público: requiere una cuenta alwaysdata, la configuración del sitio y los secretos/variables indicados. El repositorio no puede comprobar la persistencia ni la URL hasta que esos accesos se configuren.

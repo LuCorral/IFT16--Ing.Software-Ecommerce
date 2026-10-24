@@ -1,0 +1,219 @@
+name: Verify and deploy demo
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecommerce-demo-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  deploy:
+    name: Deploy alwaysdata demo
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: demo
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ALWAYSDATA_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.ALWAYSDATA_SSH_KNOWN_HOSTS }}
+          API_TOKEN: ${{ secrets.ALWAYSDATA_API_TOKEN }}
+          ACCOUNT: ${{ vars.ALWAYSDATA_ACCOUNT }}
+          SSH_HOST: ${{ vars.ALWAYSDATA_SSH_HOST }}
+          SSH_USER: ${{ vars.ALWAYSDATA_SSH_USER }}
+          SITE_ID: ${{ vars.ALWAYSDATA_SITE_ID }}
+          APP_DIR: ${{ vars.ALWAYSDATA_APP_DIR }}
+          DB_STORAGE: ${{ vars.ALWAYSDATA_DB_STORAGE }}
+          PUBLIC_URL: ${{ vars.DEMO_PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          : "${SSH_PRIVATE_KEY:?Set secret ALWAYSDATA_SSH_PRIVATE_KEY}"
+          : "${SSH_KNOWN_HOSTS:?Set secret ALWAYSDATA_SSH_KNOWN_HOSTS}"
+          : "${API_TOKEN:?Set secret ALWAYSDATA_API_TOKEN}"
+          : "${ACCOUNT:?Set variable ALWAYSDATA_ACCOUNT}"
+          : "${SSH_HOST:?Set variable ALWAYSDATA_SSH_HOST}"
+          : "${SSH_USER:?Set variable ALWAYSDATA_SSH_USER}"
+          : "${SITE_ID:?Set variable ALWAYSDATA_SITE_ID}"
+          : "${APP_DIR:?Set variable ALWAYSDATA_APP_DIR}"
+          : "${DB_STORAGE:?Set variable ALWAYSDATA_DB_STORAGE}"
+          : "${PUBLIC_URL:?Set variable DEMO_PUBLIC_URL}"
+          [[ "$SITE_ID" =~ ^[0-9]+$ ]]
+          [[ "$APP_DIR" =~ ^/home/[A-Za-z0-9._-]+/apps/ecommerce$ ]]
+          [[ "$DB_STORAGE" == "${APP_DIR%/apps/ecommerce}/data/ecommerce.sqlite" ]]
+          [[ "$PUBLIC_URL" == https://* && "$PUBLIC_URL" != */ ]]
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ALWAYSDATA_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.ALWAYSDATA_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo "Missing ALWAYSDATA_SSH_PRIVATE_KEY." >&2; exit 1; }
+          test -n "$SSH_KNOWN_HOSTS" || { echo "Missing ALWAYSDATA_SSH_KNOWN_HOSTS." >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > /dev/null
+
+      - name: Stage and migrate release
+        id: activate
+        shell: bash
+        env:
+          SSH_HOST: ${{ vars.ALWAYSDATA_SSH_HOST }}
+          SSH_USER: ${{ vars.ALWAYSDATA_SSH_USER }}
+          APP_DIR: ${{ vars.ALWAYSDATA_APP_DIR }}
+          DB_STORAGE: ${{ vars.ALWAYSDATA_DB_STORAGE }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Set repository variable ALWAYSDATA_SSH_HOST}"
+          : "${SSH_USER:?Set repository variable ALWAYSDATA_SSH_USER}"
+          : "${APP_DIR:?Set repository variable ALWAYSDATA_APP_DIR}"
+          : "${DB_STORAGE:?Set repository variable ALWAYSDATA_DB_STORAGE}"
+          [[ "$APP_DIR" =~ ^/home/[A-Za-z0-9._-]+/apps/ecommerce$ ]]
+          [[ "$DB_STORAGE" == "${APP_DIR%/apps/ecommerce}/data/ecommerce.sqlite" ]]
+
+          target="$SSH_USER@$SSH_HOST"
+          release_path="$APP_DIR/releases/$GITHUB_SHA"
+          ssh "$target" "mkdir -p '$release_path'"
+          rsync -az \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='*.sqlite*' \
+            --exclude='*.db' \
+            --exclude='tests/' \
+            --exclude='docs/' \
+            ./ "$target:$release_path/"
+
+          remote_deploy() {
+            ssh "$target" bash -s -- "$1" "$GITHUB_SHA" "$APP_DIR" "$DB_STORAGE" "${2:-}" < scripts/deploy-alwaysdata.sh
+          }
+          remote_deploy prepare
+          remote_deploy migrate
+          previous_release=$(remote_deploy activate)
+          echo "previous_release=$previous_release" >> "$GITHUB_OUTPUT"
+
+      - name: Restart the alwaysdata site
+        shell: bash
+        env:
+          API_TOKEN: ${{ secrets.ALWAYSDATA_API_TOKEN }}
+          ACCOUNT: ${{ vars.ALWAYSDATA_ACCOUNT }}
+          SITE_ID: ${{ vars.ALWAYSDATA_SITE_ID }}
+        run: |
+          set -euo pipefail
+          : "${API_TOKEN:?Set secret ALWAYSDATA_API_TOKEN}"
+          : "${ACCOUNT:?Set repository variable ALWAYSDATA_ACCOUNT}"
+          : "${SITE_ID:?Set repository variable ALWAYSDATA_SITE_ID}"
+          [[ "$SITE_ID" =~ ^[0-9]+$ ]]
+          curl --fail --silent --show-error \
+            --user "$API_TOKEN account=$ACCOUNT:" \
+            --request POST \
+            "https://api.alwaysdata.com/v1/site/$SITE_ID/restart/"
+
+      - name: Verify public HTTPS health
+        id: health
+        shell: bash
+        env:
+          PUBLIC_URL: ${{ vars.DEMO_PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          : "${PUBLIC_URL:?Set repository variable DEMO_PUBLIC_URL}"
+          [[ "$PUBLIC_URL" == https://* ]]
+          for attempt in $(seq 1 30); do
+            response=$(curl --fail --silent --show-error "$PUBLIC_URL/health" 2>/dev/null || true)
+            if [[ -n "$response" ]] && jq -e --arg commit "$GITHUB_SHA" \
+              '.status == "ok" and .commit == $commit' <<< "$response" > /dev/null; then
+              echo "Healthy HTTPS deployment: $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The deployed release did not become healthy at $PUBLIC_URL/health." >&2
+          exit 1
+
+      - name: Restore previous release after failure
+        if: failure() && steps.activate.outputs.previous_release != ''
+        shell: bash
+        env:
+          SSH_HOST: ${{ vars.ALWAYSDATA_SSH_HOST }}
+          SSH_USER: ${{ vars.ALWAYSDATA_SSH_USER }}
+          APP_DIR: ${{ vars.ALWAYSDATA_APP_DIR }}
+          DB_STORAGE: ${{ vars.ALWAYSDATA_DB_STORAGE }}
+          API_TOKEN: ${{ secrets.ALWAYSDATA_API_TOKEN }}
+          ACCOUNT: ${{ vars.ALWAYSDATA_ACCOUNT }}
+          SITE_ID: ${{ vars.ALWAYSDATA_SITE_ID }}
+          PUBLIC_URL: ${{ vars.DEMO_PUBLIC_URL }}
+          PREVIOUS_RELEASE: ${{ steps.activate.outputs.previous_release }}
+        run: |
+          set -euo pipefail
+          target="$SSH_USER@$SSH_HOST"
+          ssh "$target" bash -s -- rollback "$GITHUB_SHA" "$APP_DIR" "$DB_STORAGE" "$PREVIOUS_RELEASE" < scripts/deploy-alwaysdata.sh
+          curl --fail --silent --show-error \
+            --user "$API_TOKEN account=$ACCOUNT:" \
+            --request POST \
+            "https://api.alwaysdata.com/v1/site/$SITE_ID/restart/"
+          previous_commit=${PREVIOUS_RELEASE##*/}
+          for attempt in $(seq 1 30); do
+            response=$(curl --fail --silent --show-error "$PUBLIC_URL/health" 2>/dev/null || true)
+            if [[ -n "$response" ]] && jq -e --arg commit "$previous_commit" \
+              '.status == "ok" and .commit == $commit' <<< "$response" > /dev/null; then
+              echo "Restored previous code release: $previous_commit"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The previous release did not become healthy after rollback." >&2
+          exit 1
+
+      - name: Prune old code releases
+        if: success()
+        shell: bash
+        env:
+          SSH_HOST: ${{ vars.ALWAYSDATA_SSH_HOST }}
+          SSH_USER: ${{ vars.ALWAYSDATA_SSH_USER }}
+          APP_DIR: ${{ vars.ALWAYSDATA_APP_DIR }}
+          DB_STORAGE: ${{ vars.ALWAYSDATA_DB_STORAGE }}
+        run: |
+          set -euo pipefail
+          target="$SSH_USER@$SSH_HOST"
+          ssh "$target" bash -s -- prune "$GITHUB_SHA" "$APP_DIR" "$DB_STORAGE" < scripts/deploy-alwaysdata.sh

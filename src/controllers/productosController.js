@@ -132,6 +132,13 @@ const productosController = {
         return res.status(400).json({ error: validated.error });
       }
 
+      const categoryExists = await Producto.findOne({
+        where: { categoria: validated.data.categoria },
+      });
+      if (!categoryExists) {
+        return res.status(400).json({ error: "Seleccioná una categoría existente." });
+      }
+
       const nuevoProducto = await Producto.create(validated.data);
 
       res.status(201).json({
@@ -160,6 +167,13 @@ const productosController = {
         return res.status(404).json({
           error: "No se encontró el producto a actualizar",
         });
+      }
+
+      const categoryExists = await Producto.findOne({
+        where: { categoria: validated.data.categoria },
+      });
+      if (!categoryExists) {
+        return res.status(400).json({ error: "Seleccioná una categoría existente." });
       }
 
       const productoActualizado = await producto.update(validated.data);
