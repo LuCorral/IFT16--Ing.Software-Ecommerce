@@ -1191,7 +1191,14 @@
                             <i class="fa-solid fa-box-open"></i> Productos
                         </button>
                     </li>
-                    <li>
+                    
+<li>
+  <button class="sidebar-link" id="nav-cust"
+          onclick="switchAdminView('customers')">
+    <i class="fa-solid fa-users"></i> Gestión de usuarios
+  </button>
+</li>
+<li>
                         <button class="sidebar-link" id="nav-orders" onclick="switchAdminView('orders')">
                             <i class="fa-solid fa-receipt"></i> Gestión de pedidos
                         </button>
@@ -1271,13 +1278,13 @@
             <!-- Sección Clientes -->
             <section id="admin-customers" class="admin-section" hidden>
                 <div class="section-header">
-                    <h2><i class="fa-solid fa-users"></i> Gestión de Clientes</h2>
+                    <h2><i class="fa-solid fa-users"></i> Gestión de Usuarios</h2>
                     <div class="section-actions">
                         <button class="btn-export-csv" type="button" onclick="exportCustomersCsv()">
                             <i class="fa-solid fa-file-csv"></i> Bajar Excel/CSV
                         </button>
                         <button class="btn-hero" style="margin: 0; background: var(--accent-color);" onclick="openCustomerModal()">
-                            <i class="fa-solid fa-user-plus"></i> Nuevo Cliente
+                            <i class="fa-solid fa-user-plus"></i> Nuevo Usuario
                         </button>
                     </div>
                 </div>
