@@ -1103,7 +1103,77 @@
         overflow-x: auto;
     }
 }
-    </style>
+    
+/* sidebar-buttons-v2 */
+.admin-body .sidebar-nav {
+  display: block;
+  padding: 0;
+}
+.admin-body .sidebar-nav ul {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  margin: 0;
+  padding: 24px 16px;
+  gap: 10px;
+  box-sizing: border-box;
+}
+.admin-body .sidebar-nav li {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-body .sidebar-nav .sidebar-separator {
+  display: none;
+}
+.admin-body .sidebar-nav .sidebar-link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  margin: 0;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+  background: rgba(0,0,0,.12);
+  color: white;
+  text-align: left;
+  line-height: 1.35;
+  box-shadow: inset 3px 3px 6px rgba(0,0,0,.24),
+              inset -2px -2px 5px rgba(255,255,255,.06);
+}
+.admin-body .sidebar-nav .sidebar-link i {
+  flex: 0 0 22px;
+  width: 22px;
+  text-align: center;
+}
+.admin-body .sidebar-nav .sidebar-link:hover {
+  background: rgba(255,255,255,.08);
+}
+.admin-body .sidebar-nav .sidebar-link.active {
+  background: var(--secondary-color);
+  box-shadow: 0 6px 14px rgba(0,0,0,.16);
+}
+@media (max-width: 768px) {
+  .admin-body .sidebar-nav { padding: 12px; }
+  .admin-body .sidebar-nav ul {
+    width: max-content;
+    flex-direction: row;
+    padding: 0;
+  }
+  .admin-body .sidebar-nav li {
+    width: auto;
+    flex: 0 0 auto;
+  }
+}
+
+</style>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body class="admin-body" hidden>
 
