@@ -39,13 +39,17 @@ function getCart() {
 }
 
 function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  })[char]);
+  return String(value ?? '').replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[char],
+  );
 }
 
 function clearAppliedCoupon() {
@@ -83,44 +87,64 @@ function updateCartSummary() {
     return;
   }
 
-  const subtotal = roundMoney(getCart().reduce(
-    (sum, item) => sum + Number(item.price) * Number(item.quantity),
-    0,
-  ));
+  const subtotal = roundMoney(
+    getCart().reduce(
+      (sum, item) => sum + Number(item.price) * Number(item.quantity),
+      0,
+    ),
+  );
   const discountPercent = Number(sessionStorage.getItem('cuponDescuento')) || 0;
-  const discount = roundMoney(subtotal * discountPercent / 100);
+  const discount = roundMoney((subtotal * discountPercent) / 100);
 
-  if (subtotalElement) subtotalElement.textContent = `$${subtotal.toLocaleString('es-AR')}`;
-  if (discountElement) discountElement.textContent = `-$${discount.toLocaleString('es-AR')}`;
-  if (totalElement) totalElement.textContent = `$${roundMoney(subtotal - discount).toLocaleString('es-AR')}`;
+  if (subtotalElement)
+    subtotalElement.textContent = `$${subtotal.toLocaleString('es-AR')}`;
+  if (discountElement)
+    discountElement.textContent = `-$${discount.toLocaleString('es-AR')}`;
+  if (totalElement)
+    totalElement.textContent = `$${roundMoney(subtotal - discount).toLocaleString('es-AR')}`;
 }
 
 async function synchronizeCartPrices() {
   const cart = getCart();
   let changed = false;
-  const updatedCart = await Promise.all(cart.map(async (item) => {
-    const response = await fetch(`/api/productos/${encodeURIComponent(item.id)}`);
-    const product = await response.json();
-    if (!response.ok) {
-      throw new Error(product.error || `No se pudo validar ${item.name || 'un producto'} en el catálogo`);
-    }
+  const updatedCart = await Promise.all(
+    cart.map(async (item) => {
+      const response = await fetch(
+        `/api/productos/${encodeURIComponent(item.id)}`,
+      );
+      const product = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          product.error ||
+            `No se pudo validar ${item.name || 'un producto'} en el catálogo`,
+        );
+      }
 
-    const price = Number(product.price ?? product.precio);
-    const stock = Number(product.stock);
-    if (!Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
-      throw new Error(`El producto ${product.name || product.nombre || item.name} tiene datos de precio o stock inválidos`);
-    }
+      const price = Number(product.price ?? product.precio);
+      const stock = Number(product.stock);
+      if (
+        !Number.isFinite(price) ||
+        price < 0 ||
+        !Number.isInteger(stock) ||
+        stock < 0
+      ) {
+        throw new Error(
+          `El producto ${product.name || product.nombre || item.name} tiene datos de precio o stock inválidos`,
+        );
+      }
 
-    if (price !== Number(item.price) || stock !== Number(item.stock)) changed = true;
-    return {
-      ...item,
-      id: product.id,
-      name: product.name || product.nombre,
-      price,
-      stock,
-      image: product.image || item.image,
-    };
-  }));
+      if (price !== Number(item.price) || stock !== Number(item.stock))
+        changed = true;
+      return {
+        ...item,
+        id: product.id,
+        name: product.name || product.nombre,
+        price,
+        stock,
+        image: product.image || item.image,
+      };
+    }),
+  );
 
   localStorage.setItem('cart', JSON.stringify(updatedCart));
   return changed;
@@ -146,7 +170,8 @@ async function refreshCartSummary() {
     const couponApplied = await applyCoupon(couponCode);
     const currentDiscount = sessionStorage.getItem('cuponDescuento');
     return {
-      changed: pricesChanged || !couponApplied || currentDiscount !== previousDiscount,
+      changed:
+        pricesChanged || !couponApplied || currentDiscount !== previousDiscount,
     };
   }
 
@@ -165,8 +190,13 @@ function showPurchaseConfirmation(data, cart) {
 
   const pedido = data.pedido || {};
   const totalFinal = Number(data.total ?? pedido.total ?? 0);
-  const totalItems = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-  const orderCode = pedido.id ? `PED-${pedido.id}` : `PED-${Date.now().toString().slice(-8)}`;
+  const totalItems = cart.reduce(
+    (sum, item) => sum + (Number(item.quantity) || 0),
+    0,
+  );
+  const orderCode = pedido.id
+    ? `PED-${pedido.id}`
+    : `PED-${Date.now().toString().slice(-8)}`;
 
   modal.innerHTML = `
     <div class="purchase-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-title">
@@ -192,9 +222,11 @@ function showPurchaseConfirmation(data, cart) {
     window.location.href = '/index.html';
   });
 
-  document.getElementById('purchase-continue')?.addEventListener('click', () => {
-    window.location.href = '/html/productos.html';
-  });
+  document
+    .getElementById('purchase-continue')
+    ?.addEventListener('click', () => {
+      window.location.href = '/html/productos.html';
+    });
 }
 
 function saveCart(cart, options = {}) {
@@ -207,7 +239,8 @@ function saveCart(cart, options = {}) {
     if (couponWasApplied) {
       const couponMessage = document.getElementById('coupon-message');
       if (couponMessage) {
-        couponMessage.textContent = 'El carrito cambió. Aplicá nuevamente el cupón para actualizar el descuento.';
+        couponMessage.textContent =
+          'El carrito cambió. Aplicá nuevamente el cupón para actualizar el descuento.';
         couponMessage.className = 'coupon-message info';
       }
     }
@@ -227,7 +260,12 @@ function addToCart(producto, cantidad = 1) {
   const stock = Number(producto.stock) || 0;
   const quantityToAdd = Number(cantidad);
 
-  if (stock <= 0 || !Number.isInteger(quantityToAdd) || quantityToAdd <= 0 || quantityToAdd > stock) {
+  if (
+    stock <= 0 ||
+    !Number.isInteger(quantityToAdd) ||
+    quantityToAdd <= 0 ||
+    quantityToAdd > stock
+  ) {
     showNotification(`✕ ${producto.name} no tiene stock`, 'error');
     return;
   }
@@ -367,13 +405,17 @@ function displayFilteredProducts(products) {
 
   bindAddToCartButtons();
   document.querySelectorAll('.btn-product-detail').forEach((button) => {
-    button.addEventListener('click', () => openProductDetail(button.dataset.productId));
+    button.addEventListener('click', () =>
+      openProductDetail(button.dataset.productId),
+    );
   });
 }
 
 async function openProductDetail(productId) {
   try {
-    const response = await fetch(`/api/productos/${encodeURIComponent(productId)}`);
+    const response = await fetch(
+      `/api/productos/${encodeURIComponent(productId)}`,
+    );
     if (!response.ok) throw new Error('No se pudo cargar el producto');
     const product = await response.json();
     let modal = document.getElementById('product-detail-modal');
@@ -386,7 +428,9 @@ async function openProductDetail(productId) {
 
     const name = escapeHtml(product.name || product.nombre);
     const image = escapeHtml(product.image || '/img/placeholder.png');
-    const description = escapeHtml(product.descripcion || 'Sin descripción disponible.');
+    const description = escapeHtml(
+      product.descripcion || 'Sin descripción disponible.',
+    );
     const price = Number(product.price ?? product.precio ?? 0);
     const stock = Number(product.stock) || 0;
     modal.innerHTML = `
@@ -409,21 +453,27 @@ async function openProductDetail(productId) {
         </div>
       </section>`;
     modal.classList.add('active');
-    modal.querySelector('.product-detail-close').addEventListener('click', () => modal.classList.remove('active'));
+    modal
+      .querySelector('.product-detail-close')
+      .addEventListener('click', () => modal.classList.remove('active'));
     const quantityInput = modal.querySelector('#detail-quantity');
     modal.querySelectorAll('.detail-quantity-step').forEach((button) => {
       button.addEventListener('click', () => {
         const next = Number(quantityInput.value) + Number(button.dataset.step);
         quantityInput.value = Math.max(1, Math.min(stock, next));
-        modal.querySelector('[data-step="-1"]').disabled = Number(quantityInput.value) <= 1;
-        modal.querySelector('[data-step="1"]').disabled = Number(quantityInput.value) >= stock;
+        modal.querySelector('[data-step="-1"]').disabled =
+          Number(quantityInput.value) <= 1;
+        modal.querySelector('[data-step="1"]').disabled =
+          Number(quantityInput.value) >= stock;
       });
     });
     modal.onclick = (event) => {
       if (event.target === modal) modal.classList.remove('active');
     };
     modal.querySelector('.btn-add').addEventListener('click', (event) => {
-      event.currentTarget.dataset.quantity = String(Math.min(stock, Math.max(1, Number(quantityInput.value) || 1)));
+      event.currentTarget.dataset.quantity = String(
+        Math.min(stock, Math.max(1, Number(quantityInput.value) || 1)),
+      );
       handleAddToCart(event);
       modal.classList.remove('active');
     });
@@ -528,12 +578,12 @@ async function loadProductsPage(page = 1) {
 
   try {
     currentProductsPage = Math.max(Number(page) || 1, 1);
-    
+
     // Si es la primera página, resetear datos acumulados
     if (currentProductsPage === 1) {
       accumulatedProducts = [];
     }
-    
+
     const params = new URLSearchParams({
       page: currentProductsPage,
       limit: PRODUCTS_PAGE_LIMIT,
@@ -553,7 +603,7 @@ async function loadProductsPage(page = 1) {
     if (currentProductsPage === 1) {
       productsList.innerHTML = '<p>Cargando productos...</p>';
     }
-    
+
     const response = await fetch(`/api/productos?${params.toString()}`);
 
     if (!response.ok) throw new Error('Error al cargar productos');
@@ -572,10 +622,10 @@ async function loadProductsPage(page = 1) {
       isLoadingProducts = false;
       return;
     }
-    
+
     // Acumular productos
     accumulatedProducts = accumulatedProducts.concat(allProducts);
-    
+
     bindCategoryFilterButtons();
     displayFilteredProducts(accumulatedProducts);
     renderProductsPagination(productsPagination);
@@ -629,7 +679,9 @@ async function loadFeaturedProducts() {
     });
     bindAddToCartButtons();
     container.querySelectorAll('.btn-product-detail').forEach((button) => {
-      button.addEventListener('click', () => openProductDetail(button.dataset.productId));
+      button.addEventListener('click', () =>
+        openProductDetail(button.dataset.productId),
+      );
     });
   } catch (error) {
     console.error('Error cargando destacados:', error);
@@ -726,12 +778,11 @@ function emptyCart() {
 async function applyCoupon(codeOverride = null) {
   const couponInput = document.getElementById('coupon-code');
   const couponMessage = document.getElementById('coupon-message');
-  
+
   if (!couponInput || !couponMessage) return;
 
-  const inputCode = typeof codeOverride === 'string'
-    ? codeOverride
-    : couponInput.value;
+  const inputCode =
+    typeof codeOverride === 'string' ? codeOverride : couponInput.value;
   const code = inputCode.trim().toUpperCase();
   if (typeof codeOverride === 'string') couponInput.value = code;
   if (!code) {
@@ -742,7 +793,10 @@ async function applyCoupon(codeOverride = null) {
   }
 
   const cart = getCart();
-  const total = cart.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
+  const total = cart.reduce(
+    (sum, item) => sum + Number(item.price) * Number(item.quantity),
+    0,
+  );
 
   if (total === 0) {
     clearAppliedCoupon();
@@ -752,7 +806,9 @@ async function applyCoupon(codeOverride = null) {
   }
 
   try {
-    const response = await fetch(`/api/cupones/aplicar/${encodeURIComponent(code)}?monto=${total}`);
+    const response = await fetch(
+      `/api/cupones/aplicar/${encodeURIComponent(code)}?monto=${total}`,
+    );
     const data = await response.json();
 
     if (!response.ok) {
@@ -763,12 +819,16 @@ async function applyCoupon(codeOverride = null) {
     }
 
     const discountPercent = Number(data.descuento);
-    if (!Number.isFinite(discountPercent) || discountPercent <= 0 || discountPercent > 100) {
+    if (
+      !Number.isFinite(discountPercent) ||
+      discountPercent <= 0 ||
+      discountPercent > 100
+    ) {
       throw new Error('El servidor devolvió un descuento inválido');
     }
     sessionStorage.setItem('cuponAplicado', data.codigo);
     sessionStorage.setItem('cuponDescuento', String(discountPercent));
-    const descuento = roundMoney(total * discountPercent / 100);
+    const descuento = roundMoney((total * discountPercent) / 100);
     couponMessage.textContent = `✓ Cupón aplicado: ${data.codigo} | Descuento: -$${descuento.toLocaleString('es-AR')}`;
     couponMessage.className = 'coupon-message success';
     updateCartSummary();
@@ -787,7 +847,8 @@ async function loadUserOrders() {
   if (!container) return;
   const token = localStorage.getItem('token');
   if (!token) {
-    container.innerHTML = '<p><a href="/login.html">Iniciá sesión</a> para consultar tus pedidos.</p>';
+    container.innerHTML =
+      '<p><a href="/login.html">Iniciá sesión</a> para consultar tus pedidos.</p>';
     return;
   }
 
@@ -796,28 +857,40 @@ async function loadUserOrders() {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.mensaje || 'No se pudieron cargar los pedidos');
+    if (!response.ok)
+      throw new Error(data.mensaje || 'No se pudieron cargar los pedidos');
     if (!data.length) {
       container.innerHTML = '<p>Todavía no tenés pedidos.</p>';
       return;
     }
 
-    container.innerHTML = data.map((order) => {
-      const orderId = Number(order.id);
-      const status = String(order.estado || '');
-      const normalizedStatus = status.toLowerCase();
-      const isPending = normalizedStatus === 'pendiente';
-      const isClient = localStorage.getItem('userRole') === 'client';
-      const items = (order.detalles || []).map((detail) => `
+    container.innerHTML = data
+      .map((order) => {
+        const orderId = Number(order.id);
+        const status = String(order.estado || '');
+        const normalizedStatus = status.toLowerCase();
+        const isPending = normalizedStatus === 'pendiente';
+        const isClient = localStorage.getItem('userRole') === 'client';
+        const items = (order.detalles || [])
+          .map(
+            (detail) => `
         <li>
           <span>${escapeHtml(detail.nombreProducto)} x ${Number(detail.cantidad)}</span>
           <span>${formatOrderCurrency(detail.subtotal)}</span>
         </li>
-      `).join('');
-      const statusClass = ['pendiente', 'pagado', 'enviado', 'entregado', 'cancelado'].includes(normalizedStatus)
-        ? `is-${normalizedStatus}`
-        : 'is-other';
-      return `<article class="order-item">
+      `,
+          )
+          .join('');
+        const statusClass = [
+          'pendiente',
+          'pagado',
+          'enviado',
+          'entregado',
+          'cancelado',
+        ].includes(normalizedStatus)
+          ? `is-${normalizedStatus}`
+          : 'is-other';
+        return `<article class="order-item">
         <div class="order-heading">
           <h3>Pedido #${orderId}</h3>
           <p>${escapeHtml(order.fecha)}</p>
@@ -826,7 +899,9 @@ async function loadUserOrders() {
         <ul>${items}</ul>
         <div class="order-summary">
           <strong>Total: ${formatOrderCurrency(order.total)}</strong>
-          ${isPending && isClient ? `<div class="order-payment-actions">
+          ${
+            isPending && isClient
+              ? `<div class="order-payment-actions">
             <p class="payment-demo-note">Pago simulado: no se realiza ningún cargo real.</p>
             <label>Método
               <select data-payment-method="${orderId}">
@@ -836,20 +911,29 @@ async function loadUserOrders() {
             </label>
             <label><input type="checkbox" data-payment-rejection="${orderId}"> Simular rechazo</label>
             <button type="button" class="btn-pay-order" data-pay-order="${orderId}">Pagar</button>
-          </div>` : ''}
+          </div>`
+              : ''
+          }
           ${['pagado', 'enviado', 'entregado'].includes(normalizedStatus) ? `<button type="button" class="btn-receipt" data-receipt-order="${orderId}">Ver comprobante</button>` : ''}
           ${isPending ? `<button type="button" class="btn-cancel-order" data-cancel-order="${orderId}">Cancelar pedido</button>` : ''}
         </div>
       </article>`;
-    }).join('');
+      })
+      .join('');
     container.querySelectorAll('[data-pay-order]').forEach((button) => {
-      button.addEventListener('click', () => payOrder(button.dataset.payOrder, button));
+      button.addEventListener('click', () =>
+        payOrder(button.dataset.payOrder, button),
+      );
     });
     container.querySelectorAll('[data-receipt-order]').forEach((button) => {
-      button.addEventListener('click', () => viewReceipt(button.dataset.receiptOrder));
+      button.addEventListener('click', () =>
+        viewReceipt(button.dataset.receiptOrder),
+      );
     });
     container.querySelectorAll('[data-cancel-order]').forEach((button) => {
-      button.addEventListener('click', () => cancelOrder(button.dataset.cancelOrder, button));
+      button.addEventListener('click', () =>
+        cancelOrder(button.dataset.cancelOrder, button),
+      );
     });
   } catch (error) {
     container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
@@ -858,8 +942,12 @@ async function loadUserOrders() {
 
 async function payOrder(orderId, button) {
   const safeOrderId = Number(orderId);
-  const method = document.querySelector(`[data-payment-method="${safeOrderId}"]`)?.value;
-  const simulateRejection = document.querySelector(`[data-payment-rejection="${safeOrderId}"]`)?.checked;
+  const method = document.querySelector(
+    `[data-payment-method="${safeOrderId}"]`,
+  )?.value;
+  const simulateRejection = document.querySelector(
+    `[data-payment-rejection="${safeOrderId}"]`,
+  )?.checked;
   const token = localStorage.getItem('token');
   if (!token) {
     showNotification('Iniciá sesión para pagar pedidos', 'error');
@@ -868,20 +956,27 @@ async function payOrder(orderId, button) {
   if (button) button.disabled = true;
 
   try {
-    const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}/pagar`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+    const response = await fetch(
+      `/api/pedidos/${encodeURIComponent(orderId)}/pagar`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          metodo: method,
+          resultadoSimulado: simulateRejection ? 'rechazado' : 'aprobado',
+        }),
       },
-      body: JSON.stringify({
-        metodo: method,
-        resultadoSimulado: simulateRejection ? 'rechazado' : 'aprobado',
-      }),
-    });
+    );
     const data = await response.json();
-    if (!response.ok) throw new Error(data.mensaje || 'No se pudo procesar el pago');
-    showNotification(data.mensaje, data.pago.estado === 'Rechazado' ? 'error' : 'success');
+    if (!response.ok)
+      throw new Error(data.mensaje || 'No se pudo procesar el pago');
+    showNotification(
+      data.mensaje,
+      data.pago.estado === 'Rechazado' ? 'error' : 'success',
+    );
     await loadUserOrders();
   } catch (error) {
     showNotification(error.message, 'error');
@@ -898,20 +993,28 @@ async function viewReceipt(orderId) {
   }
 
   try {
-    const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}/comprobante`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetch(
+      `/api/pedidos/${encodeURIComponent(orderId)}/comprobante`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     const receipt = await response.json();
-    if (!response.ok) throw new Error(receipt.mensaje || 'No se pudo cargar el comprobante');
+    if (!response.ok)
+      throw new Error(receipt.mensaje || 'No se pudo cargar el comprobante');
 
-    const rows = receipt.productos.map((item) => `
+    const rows = receipt.productos
+      .map(
+        (item) => `
       <tr>
         <td>${escapeHtml(item.nombreProducto)}</td>
         <td>${Number(item.cantidad)}</td>
         <td>${formatOrderCurrency(item.precioUnitario)}</td>
         <td>${formatOrderCurrency(item.subtotal)}</td>
       </tr>
-    `).join('');
+    `,
+      )
+      .join('');
     const modal = document.createElement('div');
     modal.className = 'receipt-modal-overlay';
     modal.innerHTML = `
@@ -931,11 +1034,15 @@ async function viewReceipt(orderId) {
       </section>
     `;
     document.body.appendChild(modal);
-    modal.querySelector('.receipt-close').addEventListener('click', () => modal.remove());
+    modal
+      .querySelector('.receipt-close')
+      .addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (event) => {
       if (event.target === modal) modal.remove();
     });
-    modal.querySelector('.receipt-print').addEventListener('click', () => window.print());
+    modal
+      .querySelector('.receipt-print')
+      .addEventListener('click', () => window.print());
   } catch (error) {
     showNotification(error.message, 'error');
   }
@@ -951,12 +1058,16 @@ async function cancelOrder(orderId, button) {
 
   if (button) button.disabled = true;
   try {
-    const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}/cancelar`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetch(
+      `/api/pedidos/${encodeURIComponent(orderId)}/cancelar`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     const data = await response.json();
-    if (!response.ok) throw new Error(data.mensaje || 'No se pudo cancelar el pedido');
+    if (!response.ok)
+      throw new Error(data.mensaje || 'No se pudo cancelar el pedido');
     showNotification(data.mensaje);
     await loadUserOrders();
   } catch (error) {
@@ -974,7 +1085,8 @@ async function checkout() {
 
   const token = localStorage.getItem('token');
   if (!token) {
-    window.location.href = '/login.html?reason=checkout&returnTo=%2Fhtml%2Fcart.html';
+    window.location.href =
+      '/login.html?reason=checkout&returnTo=%2Fhtml%2Fcart.html';
     return;
   }
 
@@ -989,7 +1101,10 @@ async function checkout() {
     cartPricesReady = false;
     const summaryRefresh = await refreshCartSummary();
     if (summaryRefresh.changed && hadCurrentPrices) {
-      showNotification('Se actualizaron precios, stock o descuento. Revisá el total y confirmá nuevamente.', 'error');
+      showNotification(
+        'Se actualizaron precios, stock o descuento. Revisá el total y confirmá nuevamente.',
+        'error',
+      );
       return;
     }
 
@@ -1006,7 +1121,10 @@ async function checkout() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        productos: cart.map((item) => ({ productoId: Number(item.id), cantidad: Number(item.quantity) })),
+        productos: cart.map((item) => ({
+          productoId: Number(item.id),
+          cantidad: Number(item.quantity),
+        })),
         ...(sessionStorage.getItem('cuponAplicado')
           ? { cupon: sessionStorage.getItem('cuponAplicado') }
           : {}),
@@ -1015,12 +1133,16 @@ async function checkout() {
     const data = await response.json();
     if (response.status === 401 || response.status === 403) {
       clearUserSession();
-      window.location.href = '/login.html?reason=checkout&returnTo=%2Fhtml%2Fcart.html';
+      window.location.href =
+        '/login.html?reason=checkout&returnTo=%2Fhtml%2Fcart.html';
       return;
     }
     if (!response.ok) {
       const errorMessage = data.mensaje || 'No se pudo crear el pedido';
-      if (sessionStorage.getItem('cuponAplicado') && /cup[oó]n/i.test(errorMessage)) {
+      if (
+        sessionStorage.getItem('cuponAplicado') &&
+        /cup[oó]n/i.test(errorMessage)
+      ) {
         clearAppliedCoupon();
         const couponMessage = document.getElementById('coupon-message');
         if (couponMessage) {
@@ -1107,7 +1229,9 @@ function initAuthForms() {
         showNotification('¡Bienvenido!');
 
         setTimeout(() => {
-          const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+          const returnTo = new URLSearchParams(window.location.search).get(
+            'returnTo',
+          );
           if (returnTo === '/html/cart.html') {
             window.location.href = returnTo;
           } else if (data.user.role === 'admin') {
@@ -1131,12 +1255,18 @@ function initAuthForms() {
       const password = document.getElementById('reg-password')?.value;
 
       if (!name || !apellido || !email || !password) {
-        showNotification('Completá nombre, apellido, email y contraseña', 'error');
+        showNotification(
+          'Completá nombre, apellido, email y contraseña',
+          'error',
+        );
         return;
       }
 
-      if (password.length < 8) {
-        showNotification('La contraseña debe tener al menos 8 caracteres', 'error');
+      if (password.length < 6) {
+        showNotification(
+          'La contraseña debe tener al menos 6 caracteres',
+          'error',
+        );
         return;
       }
 
@@ -1177,12 +1307,16 @@ function updateAuthNavigation() {
   const isAuthenticated = Boolean(localStorage.getItem('token'));
   if (profileItem) profileItem.hidden = !isAuthenticated;
   if (adminItem) {
-    adminItem.hidden = !isAuthenticated || localStorage.getItem('userRole') !== 'admin';
+    adminItem.hidden =
+      !isAuthenticated || localStorage.getItem('userRole') !== 'admin';
   }
   loginItem.hidden = isAuthenticated;
   sessionItem.hidden = !isAuthenticated;
 
-  const name = [localStorage.getItem('userName'), localStorage.getItem('userSurname')]
+  const name = [
+    localStorage.getItem('userName'),
+    localStorage.getItem('userSurname'),
+  ]
     .filter(Boolean)
     .join(' ')
     .trim();
@@ -1195,7 +1329,8 @@ async function loadUserProfile() {
 
   const token = localStorage.getItem('token');
   if (!token) {
-    container.innerHTML = '<p><a href="/login.html">Iniciá sesión</a> para ver tu perfil.</p>';
+    container.innerHTML =
+      '<p><a href="/login.html">Iniciá sesión</a> para ver tu perfil.</p>';
     return;
   }
 
@@ -1207,10 +1342,12 @@ async function loadUserProfile() {
     const data = await response.json();
     if (response.status === 401 || response.status === 403) {
       clearUserSession();
-      container.innerHTML = '<p>Tu sesión venció. <a href="/login.html">Iniciá sesión</a> para ver tu perfil.</p>';
+      container.innerHTML =
+        '<p>Tu sesión venció. <a href="/login.html">Iniciá sesión</a> para ver tu perfil.</p>';
       return;
     }
-    if (!response.ok) throw new Error(data.message || 'No se pudo cargar el perfil');
+    if (!response.ok)
+      throw new Error(data.message || 'No se pudo cargar el perfil');
 
     container.innerHTML = `
       <dl class="profile-details">
@@ -1266,21 +1403,26 @@ window.logoutCurrentUser = logoutUsuario;
 // ========== MANEJO DEL FORMULARIO DE CONTACTO (PRESENTACIÓN) ==========
 document.addEventListener('DOMContentLoaded', () => {
   const contactForm = document.querySelector('.contact-form');
-  
+
   if (contactForm) {
     contactForm.addEventListener('submit', (e) => {
       // 1. Evitamos que la página se recargue por defecto
-      e.preventDefault(); 
-      
+      e.preventDefault();
+
       // 2. Capturamos el nombre para personalizar la respuesta
       const nombreUsuario = document.getElementById('name')?.value || 'Gracias';
 
       // 3. Mostramos un mensaje estético usando tu función de notificaciones
       if (typeof showNotification === 'function') {
-        showNotification(`¡Gracias, ${nombreUsuario}! Tu mensaje ha sido enviado. Te responderemos a la brevedad.`, 'success');
+        showNotification(
+          `¡Gracias, ${nombreUsuario}! Tu mensaje ha sido enviado. Te responderemos a la brevedad.`,
+          'success',
+        );
       } else {
         // Respaldo por si la función de notificación no se llega a cargar
-        alert(`¡Gracias, ${nombreUsuario}! Tu mensaje ha sido enviado con éxito. Nos comunicaremos a la brevedad.`);
+        alert(
+          `¡Gracias, ${nombreUsuario}! Tu mensaje ha sido enviado con éxito. Nos comunicaremos a la brevedad.`,
+        );
       }
 
       // 4. Limpiamos los campos del formulario para que quede listo de nuevo
@@ -1437,7 +1579,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inicializar menú
   initHamburgerMenu();
   updateAuthNavigation();
-  document.getElementById('btn-nav-logout')?.addEventListener('click', logoutUsuario);
+  document
+    .getElementById('btn-nav-logout')
+    ?.addEventListener('click', logoutUsuario);
   window.addEventListener('pageshow', updateAuthNavigation);
 
   // Actualizar contador del carrito
@@ -1448,13 +1592,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const productControls = document.getElementById('product-controls');
     productControls?.addEventListener('submit', (event) => {
       event.preventDefault();
-      productNameSearch = document.getElementById('product-search')?.value.trim() || '';
+      productNameSearch =
+        document.getElementById('product-search')?.value.trim() || '';
       loadProductsPage(1);
     });
-    document.getElementById('product-sort')?.addEventListener('change', (event) => {
-      productSort = event.currentTarget.value;
-      loadProductsPage(1);
-    });
+    document
+      .getElementById('product-sort')
+      ?.addEventListener('change', (event) => {
+        productSort = event.currentTarget.value;
+        loadProductsPage(1);
+      });
     loadProductCategories().finally(() => loadProductsPage());
   }
 
@@ -1465,7 +1612,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('cart-items')) {
     const cartContainer = document.getElementById('cart-items');
     const checkoutButton = document.getElementById('btn-checkout');
-    if (cartContainer) cartContainer.innerHTML = '<p>Validando precios actuales...</p>';
+    if (cartContainer)
+      cartContainer.innerHTML = '<p>Validando precios actuales...</p>';
     if (checkoutButton) checkoutButton.disabled = true;
     refreshCartSummary()
       .catch((error) => {
@@ -1498,8 +1646,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inicializar formularios de auth
   initAuthForms();
-  if (new URLSearchParams(window.location.search).get('reason') === 'checkout') {
-    showNotification('Iniciá sesión para confirmar tu pedido. Tu carrito se conservó.');
+  if (
+    new URLSearchParams(window.location.search).get('reason') === 'checkout'
+  ) {
+    showNotification(
+      'Iniciá sesión para confirmar tu pedido. Tu carrito se conservó.',
+    );
   }
 
   // Botones del carrito
@@ -1510,6 +1662,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnCheckout) btnCheckout.addEventListener('click', checkout);
 
   const btnApplyCoupon = document.getElementById('btn-apply-coupon');
-  if (btnApplyCoupon) btnApplyCoupon.addEventListener('click', () => applyCoupon());
-
+  if (btnApplyCoupon)
+    btnApplyCoupon.addEventListener('click', () => applyCoupon());
 });

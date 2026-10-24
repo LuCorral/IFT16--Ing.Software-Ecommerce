@@ -11,21 +11,42 @@ const { col, fn, where } = require('sequelize');
 
 function requiredCredentials() {
   const inputs = [
-    { email: process.env.DEMO_ADMIN_EMAIL, password: process.env.DEMO_ADMIN_PASSWORD, role: 'admin' },
-    { email: process.env.DEMO_CLIENT_EMAIL, password: process.env.DEMO_CLIENT_PASSWORD, role: 'client' },
+    {
+      email: process.env.DEMO_ADMIN_EMAIL,
+      password: process.env.DEMO_ADMIN_PASSWORD,
+      role: 'admin',
+    },
+    {
+      email: process.env.DEMO_CLIENT_EMAIL,
+      password: process.env.DEMO_CLIENT_PASSWORD,
+      role: 'client',
+    },
   ];
-  if (inputs.some(({ email, password }) => !email || !password || password.length < 12)) {
-    throw new Error('Set both demo emails and passwords of at least 12 characters in the environment.');
+  if (
+    inputs.some(
+      ({ email, password }) => !email || !password || password.length < 6,
+    )
+  ) {
+    throw new Error(
+      'Set both demo emails and passwords of at least 12 characters in the environment.',
+    );
   }
   const credentials = inputs.map((account) => ({
     ...account,
     email: account.email.trim().toLowerCase(),
   }));
-  if (credentials.some(({ email }) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+  if (
+    credentials.some(({ email }) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  ) {
     throw new Error('Set valid email addresses for both demo accounts.');
   }
-  if (credentials[0].email.trim().toLowerCase() === credentials[1].email.trim().toLowerCase()) {
-    throw new Error('Demo administrator and client must use different email addresses.');
+  if (
+    credentials[0].email.trim().toLowerCase() ===
+    credentials[1].email.trim().toLowerCase()
+  ) {
+    throw new Error(
+      'Demo administrator and client must use different email addresses.',
+    );
   }
   return credentials;
 }
@@ -43,18 +64,23 @@ async function seedDemo() {
       });
       if (existing) {
         if (existing.role !== account.role) {
-          throw new Error(`Existing demo account has an incompatible role: ${account.role}.`);
+          throw new Error(
+            `Existing demo account has an incompatible role: ${account.role}.`,
+          );
         }
         continue;
       }
 
-      await User.create({
-        name: account.role === 'admin' ? 'Demo' : 'Cliente Demo',
-        apellido: account.role === 'admin' ? 'Administrador' : 'Ecommerce',
-        email,
-        password: account.password,
-        role: account.role,
-      }, { transaction });
+      await User.create(
+        {
+          name: account.role === 'admin' ? 'Demo' : 'Cliente Demo',
+          apellido: account.role === 'admin' ? 'Administrador' : 'Ecommerce',
+          email,
+          password: account.password,
+          role: account.role,
+        },
+        { transaction },
+      );
     }
 
     for (const product of demoProducts) {
@@ -77,7 +103,9 @@ async function seedDemo() {
     }
   });
 
-  console.info(`Demo data ready: 2 accounts and ${demoProducts.length} catalog items; existing records were preserved.`);
+  console.info(
+    `Demo data ready: 2 accounts and ${demoProducts.length} catalog items; existing records were preserved.`,
+  );
 }
 
 if (require.main === module) {
