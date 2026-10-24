@@ -1,45 +1,52 @@
-const path = require("node:path");
-const fs = require("node:fs");
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+const path = require('node:path');
+const fs = require('node:fs');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
-const express = require("express");
-const cors = require("cors");
+const express = require('express');
+const cors = require('cors');
 
-const sequelize = require("./src/config/database");
-const { validateEnvironment } = require("./src/config/env");
-const { initializeDatabase } = require("./src/config/migrations");
-require("./src/models");
+const sequelize = require('./src/config/database');
+const { validateEnvironment } = require('./src/config/env');
+const { initializeDatabase } = require('./src/config/migrations');
+require('./src/models');
 
-const productosRoutes = require("./src/routes/productosRoutes");
-const categoriasRoutes = require("./src/routes/categoriasRoutes");
-const cuponRoutes = require("./src/routes/cuponRoutes");
-const authRoutes = require("./src/routes/authRoutes");
-const clientesRoutes = require("./src/routes/clientesRoutes");
-const usuariosRoutes = require("./src/routes/usuariosRoutes");
-const pedidoRoutes = require("./src/routes/pedidoRoutes");
-const detallePedidoRoutes = require("./src/routes/detallePedidoRoutes");
-const ticketsRoutes = require("./src/routes/ticketsRoutes");
-const { authenticateToken, isAdmin } = require("./src/middlewares/authMiddleware");
+const productosRoutes = require('./src/routes/productosRoutes');
+const categoriasRoutes = require('./src/routes/categoriasRoutes');
+const cuponRoutes = require('./src/routes/cuponRoutes');
+const authRoutes = require('./src/routes/authRoutes');
+const clientesRoutes = require('./src/routes/clientesRoutes');
+const usuariosRoutes = require('./src/routes/usuariosRoutes');
+const pedidoRoutes = require('./src/routes/pedidoRoutes');
+const detallePedidoRoutes = require('./src/routes/detallePedidoRoutes');
+const ticketsRoutes = require('./src/routes/ticketsRoutes');
+const {
+  authenticateToken,
+  isAdmin,
+} = require('./src/middlewares/authMiddleware');
 
-require("./src/models/User");
+require('./src/models/User');
 
 const app = express();
 
 // Middleware
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== 'production') {
   app.use(cors());
 }
 app.use(express.json());
 
+app.get('/favicon.svg', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'favicon.svg'));
+});
+
 function getReleaseCommit() {
-  const commitFile = path.join(__dirname, "DEPLOY_COMMIT");
+  const commitFile = path.join(__dirname, 'DEPLOY_COMMIT');
   return fs.existsSync(commitFile)
-    ? fs.readFileSync(commitFile, "utf8").trim()
-    : "local";
+    ? fs.readFileSync(commitFile, 'utf8').trim()
+    : 'local';
 }
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", commit: getReleaseCommit() });
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', commit: getReleaseCommit() });
 });
 
 app.get('/html/contacto.html', (req, res) => res.redirect('/'));
@@ -85,15 +92,20 @@ app.get('/contacto.html', (req, res) => {
 });
 
 // API Routes
-app.use("/api/productos", productosRoutes);
-app.use("/api/categorias", categoriasRoutes);
-app.use("/api/cupones", cuponRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/clientes", clientesRoutes);
-app.use("/api/usuarios", usuariosRoutes);
-app.use("/api/pedidos", pedidoRoutes);
-app.use("/api/detalles-pedido", authenticateToken, isAdmin, detallePedidoRoutes);
-app.use("/api/tickets", authenticateToken, isAdmin, ticketsRoutes);
+app.use('/api/productos', productosRoutes);
+app.use('/api/categorias', categoriasRoutes);
+app.use('/api/cupones', cuponRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/clientes', clientesRoutes);
+app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/pedidos', pedidoRoutes);
+app.use(
+  '/api/detalles-pedido',
+  authenticateToken,
+  isAdmin,
+  detallePedidoRoutes,
+);
+app.use('/api/tickets', authenticateToken, isAdmin, ticketsRoutes);
 
 async function startServer() {
   const { host, port } = validateEnvironment();
@@ -101,10 +113,12 @@ async function startServer() {
 
   return new Promise((resolve, reject) => {
     const server = app.listen(port, host, () => {
-      console.info(`Ecommerce listening on ${host}:${port} (commit ${getReleaseCommit()})`);
+      console.info(
+        `Ecommerce listening on ${host}:${port} (commit ${getReleaseCommit()})`,
+      );
       resolve(server);
     });
-    server.once("error", reject);
+    server.once('error', reject);
   });
 }
 
