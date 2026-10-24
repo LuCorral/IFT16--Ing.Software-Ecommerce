@@ -220,7 +220,7 @@ test('historias de categorías, pedidos, permisos, estados y comprobantes', asyn
     const invalidTransition = await request(`/api/pedidos/${orderId}`, {
       method: 'PUT',
       headers: { ...auth(admin), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: 'Entregado' }),
+      body: JSON.stringify({ estado: 'Desconocido' }),
     });
     assert.equal(invalidTransition.status, 400);
 
@@ -256,7 +256,17 @@ test('historias de categorías, pedidos, permisos, estados y comprobantes', asyn
       headers: { ...auth(admin), 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado: 'Enviado' }),
     });
-    assert.equal(repeatedTransition.status, 400);
+    assert.equal(repeatedTransition.status, 200);
+
+    for (const estado of ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado']) {
+      const changed = await request(`/api/pedidos/${orderId}`, {
+        method: 'PUT',
+        headers: { ...auth(admin), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado }),
+      });
+      assert.equal(changed.status, 200);
+      assert.equal((await changed.json()).pedido.estado, estado);
+    }
 
     const ticket = await Ticket.findOne({ where: { id_pedido: orderId } });
     assert.equal(ticket.estado_pago, 'Aprobado');

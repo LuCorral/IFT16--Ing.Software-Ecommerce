@@ -2709,26 +2709,20 @@
             }
 
             
+
 function renderOrderAction(orderId, state) {
   const states = ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'];
   const current = states.find(
     value => value.toLowerCase() === String(state).toLowerCase()
   );
-  const next = {
-    Pagado: 'Enviado',
-    Enviado: 'Entregado'
-  }[current];
-
   return `
     <select class="admin-order-action"
             data-order-id="${Number(orderId)}"
+            data-current-state="${current || ''}"
             aria-label="Estado del pedido ${Number(orderId)}">
-      <option value="">Seleccionar estado</option>
       ${states.map(value => `
-        <option value="${value}"
-                ${value === current ? 'selected' : ''}
-                ${value !== next ? 'disabled' : ''}>
-          ${value}${value === current ? ' (actual)' : ''}
+        <option value="${value}" ${value === current ? 'selected' : ''}>
+          ${value}
         </option>
       `).join('')}
     </select>
@@ -2782,12 +2776,12 @@ async function loadAdminOrders() {
                 const orderId = select.dataset.orderId;
                 const estado = select.value;
                 if (!estado) return;
-                if (!confirm(`¿${estado === 'Enviado' ? 'Marcar como enviado' : 'Marcar como entregado'} el pedido #${orderId}?`)) {
-                    select.value = '';
-                    return;
-                }
+                if (!confirm(`¿Cambiar el pedido #${orderId} a ${estado}?`)) {
+    select.value = select.dataset.currentState;
+    return;
+  }
 
-                select.disabled = true;
+  select.disabled = true;
                 try {
                     const response = await fetch(`/api/pedidos/${encodeURIComponent(orderId)}`, {
                         method: 'PUT',

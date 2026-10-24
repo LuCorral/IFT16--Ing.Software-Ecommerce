@@ -417,10 +417,9 @@ const pedidoController = {
 
   update: async (req, res) => {
     try {
-      const transiciones = {
-        Pagado: 'Enviado',
-        Enviado: 'Entregado',
-      };
+      
+const estadosPermitidos = ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'];
+
       const pedido = await sequelize.transaction(async (transaction) => {
         const pedidoActual = await Pedido.findByPk(req.params.id, { transaction });
         if (!pedidoActual) {
@@ -429,9 +428,11 @@ const pedidoController = {
           throw error;
         }
 
-        const siguienteEstado = transiciones[pedidoActual.estado];
-        if (!siguienteEstado || req.body.estado !== siguienteEstado) {
-          const error = new Error(`Transición de estado no permitida desde ${pedidoActual.estado}`);
+        
+const siguienteEstado = req.body?.estado;
+if (!estadosPermitidos.includes(siguienteEstado))
+ {
+          const error = new Error(`Estado de pedido no válido`);
           error.status = 400;
           throw error;
         }
