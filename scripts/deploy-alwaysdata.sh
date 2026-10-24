@@ -42,7 +42,10 @@ case "$operation" in
     printf '%s\n' "$commit" > "$release_dir/DEPLOY_COMMIT"
     cd "$release_dir"
     export NODEJS_VERSION=22
-    npm_config_jobs=1 MAKEFLAGS="-j1" npm ci --omit=dev --build-from-source
+        [[ -d node_modules ]] || {
+      echo "Las dependencias compiladas no fueron subidas." >&2
+      exit 1
+    }
     node -e "require('sqlite3'); console.log('SQLite cargado correctamente')"
     ;;
   migrate)

@@ -92,7 +92,19 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
           ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > /dev/null
-
+      - name: Build production dependencies for Debian 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --mount type=bind,source="$GITHUB_WORKSPACE",target=/app \
+            --workdir /app \
+            node:22-bookworm \
+            bash -c '
+              set -euo pipefail
+              npm_config_jobs=2 npm ci --omit=dev --build-from-source
+              node -e "require(\"sqlite3\"); console.log(\"SQLite cargado correctamente\")"
+            '
       - name: Stage and migrate release
         id: activate
         shell: bash
@@ -124,6 +136,8 @@ jobs:
             --exclude='tests/' \
             --exclude='docs/' \
             ./ "$target:$release_path/"
+                      rsync -az --delete \
+            node_modules/ "$target:$release_path/node_modules/"
 
           remote_deploy() {
             ssh "$target" bash -s -- "$1" "$GITHUB_SHA" "$APP_DIR" "$DB_STORAGE" "${2:-}" < scripts/deploy-alwaysdata.sh
