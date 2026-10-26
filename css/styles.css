@@ -419,6 +419,124 @@ main {
     transform: translateX(0);
 }
 
+/* Toast de correo simulado (Notificaciones por Correo Simuladas) */
+.email-toast-stack {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 5000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(380px, calc(100vw - 40px));
+    pointer-events: none;
+}
+
+.email-toast {
+    position: relative;
+    pointer-events: auto;
+    background: #fff;
+    border-left: 6px solid #2d6a9f;
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+    padding: 14px 40px 20px 16px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #22313f;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    overflow: hidden;
+}
+
+.email-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.email-toast.is-hiding {
+    opacity: 0;
+    transform: translateY(14px);
+}
+
+.email-toast__close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    border: 0;
+    background: transparent;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: #6b7a88;
+    cursor: pointer;
+}
+
+.email-toast__eyebrow {
+    margin: 0 0 4px;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #2d6a9f;
+    font-weight: 700;
+}
+
+.email-toast__subject {
+    margin: 0 0 2px;
+    font-size: 0.95rem;
+    color: #16222e;
+}
+
+.email-toast__meta {
+    margin: 0 0 8px;
+    font-size: 0.75rem;
+    color: #5d6b78;
+}
+
+.email-toast__body {
+    margin: 0;
+    color: #34434f;
+}
+
+.email-toast__progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 4px;
+    width: 100%;
+    background: #2d6a9f;
+    animation: email-toast-progress var(--email-toast-duration, 9s) linear forwards;
+}
+
+@keyframes email-toast-progress {
+    from {
+        width: 100%;
+    }
+
+    to {
+        width: 0;
+    }
+}
+
+@media (max-width: 600px) {
+    .email-toast-stack {
+        right: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .email-toast {
+        transition: none;
+        transform: none;
+    }
+
+    .email-toast__progress {
+        animation: none;
+    }
+}
+
 .contact-container {
     max-width: 800px;
     display: flex;
@@ -1569,8 +1687,8 @@ body.modal-open {
 
 .order-item {
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) 2fr auto auto;
-    align-items: center;
+    grid-template-columns: minmax(150px, 200px) minmax(0, 1fr) minmax(200px, 260px);
+    align-items: start;
     gap: 16px;
     border-top: 1px solid var(--light-grey);
     padding: 16px 0;
@@ -1594,14 +1712,6 @@ body.modal-open {
 
     .product-detail > img {
         max-height: 220px;
-    }
-
-    .order-item {
-        grid-template-columns: 1fr auto;
-    }
-
-    .order-item ul {
-        grid-column: 1 / -1;
     }
 }
 
@@ -2162,10 +2272,6 @@ nav ul li a:hover {
     background: #fff;
 }
 
-.order-item {
-    grid-template-columns: minmax(150px, 1fr) 2fr auto;
-}
-
 .order-item strong {
     color: var(--accent-color);
 }
@@ -2344,6 +2450,7 @@ footer p {
     gap: 6px;
     list-style: none;
     padding: 0;
+    min-width: 0;
 }
 .order-item li,
 .order-summary {
@@ -2352,17 +2459,25 @@ footer p {
     justify-content: space-between;
     gap: 12px;
 }
+.order-item li {
+    align-items: flex-start;
+}
 .order-item li span:first-child {
+    flex: 1 1 auto;
     min-width: 0;
-    overflow-wrap: anywhere;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
 }
 .order-item li span:last-child {
-    flex-shrink: 0;
+    flex: 0 0 auto;
     text-align: right;
+    white-space: nowrap;
 }
 .order-summary {
     flex-direction: column;
     align-items: flex-end;
+    min-width: 0;
 }
 .order-summary .btn-cancel-order {
     margin: 0;
@@ -2543,5 +2658,22 @@ footer p span {
 @media (max-width: 480px) {
     .hero h1 {
         font-size: 2.4rem;
+    }
+}
+
+/* Mis pedidos: apilado a una columna para no comprimir los nombres de producto */
+@media (max-width: 900px) {
+    .order-item {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .order-summary {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .order-payment-actions {
+        justify-content: flex-start;
     }
 }

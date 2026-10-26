@@ -2804,6 +2804,7 @@ async function loadAdminOrders() {
                         });
                     }
                     showNotification(data.mensaje || `Pedido actualizado a ${actualState}`);
+                    showEmailToast(data.correo_simulado);
                 } catch (error) {
                     select.disabled = false;
                     select.value = '';
@@ -2909,6 +2910,7 @@ async function loadAdminOrders() {
                 }
                 
                 window.clearUserSession();
+                window.clearCartState?.();
                 showNotification('Sesión cerrada correctamente');
                 window.location.replace('/index.html');
             }

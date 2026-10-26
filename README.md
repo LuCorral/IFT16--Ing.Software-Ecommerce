@@ -437,6 +437,42 @@ DELETE /api/tickets/:id
 
 ---
 
+## Notificaciones por correo simuladas
+
+No se envía ningún email real: cada notificación se persiste en la tabla `notificaciones_correo` (`pedido_id`, `destinatario`, `asunto`, `cuerpo`, `estado_pedido`, `fecha`).
+
+- `POST /api/pedidos` guarda el correo de confirmación con estado `Pendiente`.
+- `POST /api/pedidos/:id/pagar` guarda el correo de pago aprobado.
+- `PUT /api/pedidos/:id` genera correo cuando el administrador cambia el estado a `Pagado`, `Enviado` o `Entregado`. No se duplica si el estado no cambió, y no se genera para `Pendiente` ni `Cancelado`.
+- Las plantillas viven en `src/utils/notificacionesCorreo.js`.
+- La escritura ocurre en la misma transacción Sequelize que el pedido, por lo que un pedido rechazado no deja registros huérfanos.
+
+Las respuestas de esos tres endpoints incluyen el objeto `correo_simulado` (o `null` si no corresponde):
+
+```json
+{
+  "correo_simulado": {
+    "id": 12,
+    "pedido_id": 34,
+    "destinatario": "cliente@example.com",
+    "asunto": "Pago confirmado del pedido #34",
+    "cuerpo": "Hola,\n\nAprobamos el pago de tu pedido #34...",
+    "estado_pedido": "Pagado",
+    "fecha": "2026-10-26T15:30:00.000Z"
+  }
+}
+```
+
+En el frontend, `js/main.js` expone `showEmailToast(correo)` y el checkout del cliente (`js/main.js`) y el cambio de estado del admin (`html/admin.html`) lo invocan con `data.correo_simulado` para mostrar un toast flotante en la esquina inferior derecha.
+
+Consulta rápida de los últimos registros:
+
+```powershell
+node -e "const s=require('./src/config/database');const N=require('./src/models/NotificacionCorreo');N.findAll({order:[['id','DESC']],limit:5}).then(r=>{console.log(r.map(x=>x.toJSON()));return s.close();})"
+```
+
+---
+
 ## Paginación
 
 Los recursos que usan `src/utils/pagination.js` devuelven una respuesta con esta forma:

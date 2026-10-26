@@ -5,6 +5,11 @@ const Cupon = require('../models/Cupon');
 const Pago = require('../models/Pago');
 const Ticket = require('../models/Ticket');
 const User = require('../models/User');
+const {
+  crearNotificacion,
+  ESTADOS_NOTIFICABLES,
+  normalizarEstado,
+} = require('../utils/notificacionesCorreo');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
@@ -112,7 +117,7 @@ const pedidoController = {
         cantidades.set(productoId, (cantidades.get(productoId) || 0) + cantidad);
       }
 
-      const pedidoCreado = await sequelize.transaction(async (transaction) => {
+      const { pedido: pedidoCreado, notificacion } = await sequelize.transaction(async (transaction) => {
         const lineas = [];
         let subtotal = 0;
         for (const [productoId, cantidad] of cantidades) {
@@ -189,7 +194,14 @@ const pedidoController = {
           }
         }
 
-        return pedido;
+        const notificacion = await crearNotificacion({
+          pedido,
+          estado: 'Pendiente',
+          destinatario: req.user.email,
+          transaction,
+        });
+
+        return { pedido, notificacion };
       });
 
       const detalles = await DetallePedido.findAll({ where: { pedidoId: pedidoCreado.id } });
@@ -205,6 +217,7 @@ const pedidoController = {
         descuento: pedidoCreado.getDataValue('descuento'),
         cupon: pedidoCreado.cuponCodigo,
         total: pedidoCreado.total,
+        correo_simulado: notificacion,
       });
     } catch (error) {
       res.status(error.status || 500).json({ mensaje: error.status ? error.message : 'Error al crear el pedido', error: error.message });
@@ -307,6 +320,7 @@ const pedidoController = {
         }, { transaction });
 
         let comprobante = null;
+        let notificacion = null;
         if (aprobado) {
           const [updated] = await Pedido.update(
             { estado: 'Pagado' },
@@ -353,9 +367,16 @@ const pedidoController = {
             metodo_pago: metodoPago,
             estado_pago: estadoPago,
           }, { transaction });
+
+          notificacion = await crearNotificacion({
+            pedido: { id: pedido.id, total: pedido.total },
+            estado: 'Pagado',
+            destinatario: user.email,
+            transaction,
+          });
         }
 
-        return { pago, comprobante, estadoPedido: aprobado ? 'Pagado' : 'Pendiente' };
+        return { pago, comprobante, estadoPedido: aprobado ? 'Pagado' : 'Pendiente', notificacion };
       });
 
       res.status(200).json({
@@ -363,6 +384,7 @@ const pedidoController = {
         pago: result.pago,
         estadoPedido: result.estadoPedido,
         simulado: true,
+        correo_simulado: result.notificacion,
         comprobante: result.comprobante
           ? {
             id: result.comprobante.id,
@@ -417,10 +439,9 @@ const pedidoController = {
 
   update: async (req, res) => {
     try {
-      
-const estadosPermitidos = ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'];
+      const estadosPermitidos = ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'];
 
-      const pedido = await sequelize.transaction(async (transaction) => {
+      const resultado = await sequelize.transaction(async (transaction) => {
         const pedidoActual = await Pedido.findByPk(req.params.id, { transaction });
         if (!pedidoActual) {
           const error = new Error('Pedido no encontrado');
@@ -428,19 +449,18 @@ const estadosPermitidos = ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cance
           throw error;
         }
 
-        
-const siguienteEstado = req.body?.estado;
-if (!estadosPermitidos.includes(siguienteEstado))
- {
-          const error = new Error(`Estado de pedido no válido`);
+        const siguienteEstado = req.body?.estado;
+        if (!estadosPermitidos.includes(siguienteEstado)) {
+          const error = new Error('Estado de pedido no válido');
           error.status = 400;
           throw error;
         }
 
+        const estadoAnterior = pedidoActual.estado;
         const [actualizado] = await Pedido.update(
           { estado: siguienteEstado },
           {
-            where: { id: pedidoActual.id, estado: pedidoActual.estado },
+            where: { id: pedidoActual.id, estado: estadoAnterior },
             transaction,
           },
         );
@@ -451,12 +471,32 @@ if (!estadosPermitidos.includes(siguienteEstado))
         }
 
         pedidoActual.estado = siguienteEstado;
-        return pedidoActual;
+
+        let notificacion = null;
+        const estadoNormalizado = normalizarEstado(siguienteEstado);
+        if (
+          estadoNormalizado !== normalizarEstado(estadoAnterior)
+          && ESTADOS_NOTIFICABLES.includes(estadoNormalizado)
+        ) {
+          const clienteInfo = await getOrderCustomer(pedidoActual.cliente);
+          const destinatario = clienteInfo?.email
+            || (String(pedidoActual.cliente || '').includes('@') ? pedidoActual.cliente : null);
+
+          notificacion = await crearNotificacion({
+            pedido: pedidoActual,
+            estado: siguienteEstado,
+            destinatario,
+            transaction,
+          });
+        }
+
+        return { pedido: pedidoActual, notificacion };
       });
 
       res.json({
         mensaje: 'Pedido actualizado correctamente',
-        pedido: orderResponse(pedido),
+        pedido: orderResponse(resultado.pedido),
+        correo_simulado: resultado.notificacion,
       });
     } catch (error) {
       res.status(error.status || 500).json({

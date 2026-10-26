@@ -34,6 +34,53 @@ function showNotification(message, tipo = 'success') {
   }, 2500);
 }
 
+// ========== TOAST DE CORREO SIMULADO ==========
+const EMAIL_TOAST_DURATION = 9000;
+
+function showEmailToast(correo, { duracion = EMAIL_TOAST_DURATION } = {}) {
+  if (!correo || !correo.asunto) return null;
+
+  let stack = document.getElementById('email-toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'email-toast-stack';
+    stack.className = 'email-toast-stack';
+    stack.setAttribute('aria-live', 'polite');
+    document.body.appendChild(stack);
+  }
+
+  const toast = document.createElement('article');
+  toast.className = 'email-toast';
+  toast.setAttribute('role', 'status');
+  toast.style.setProperty('--email-toast-duration', `${duracion}ms`);
+  toast.innerHTML = `
+    <button type="button" class="email-toast__close" aria-label="Cerrar notificación">&times;</button>
+    <p class="email-toast__eyebrow">
+      <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+      Correo simulado · ${escapeHtml(correo.estado_pedido || 'sin estado')}
+    </p>
+    <h3 class="email-toast__subject">${escapeHtml(correo.asunto)}</h3>
+    <p class="email-toast__meta">Para: ${escapeHtml(correo.destinatario || 'sin destinatario')}</p>
+    <div class="email-toast__body">${escapeHtml(correo.cuerpo || '').replace(/\n/g, '<br>')}</div>
+    <span class="email-toast__progress" aria-hidden="true"></span>
+  `;
+
+  const cerrar = () => {
+    if (toast.classList.contains('is-hiding')) return;
+    toast.classList.add('is-hiding');
+    setTimeout(() => toast.remove(), 250);
+  };
+
+  toast.querySelector('.email-toast__close')?.addEventListener('click', cerrar);
+  stack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+  setTimeout(cerrar, duracion);
+
+  return toast;
+}
+
+window.showEmailToast = showEmailToast;
+
 function getCart() {
   return JSON.parse(localStorage.getItem('cart')) || [];
 }
@@ -254,6 +301,25 @@ function updateCartCount() {
     if (el) el.textContent = totalItems;
   });
 }
+
+function clearCartState() {
+  localStorage.removeItem('cart');
+  sessionStorage.removeItem('cuponAplicado');
+  sessionStorage.removeItem('cuponDescuento');
+  cartPricesReady = true;
+
+  const couponMessage = document.getElementById('coupon-message');
+  if (couponMessage) {
+    couponMessage.textContent = '';
+    couponMessage.className = 'coupon-message';
+  }
+
+  updateCartCount();
+  renderCart();
+  updateCartSummary();
+}
+
+window.clearCartState = clearCartState;
 
 // ========== FUNCIONES DEL CARRITO ==========
 function addToCart(producto, cantidad = 1) {
@@ -1157,6 +1223,7 @@ async function checkout() {
     renderCart();
     await loadUserOrders();
     showPurchaseConfirmation(data, cart);
+    showEmailToast(data.correo_simulado);
   } catch (error) {
     showNotification(error.message, 'error');
   } finally {
@@ -1394,6 +1461,7 @@ function logoutUsuario() {
   }
 
   clearUserSession();
+  clearCartState();
   showNotification('Sesión cerrada');
   window.location.replace('/index.html');
 }
