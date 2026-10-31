@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { Op, fn, col, where } = require('sequelize');
 const {
   getPaginationParams,
   buildPaginatedResponse,
@@ -8,8 +9,13 @@ const usuariosController = {
   getAll: async (req, res) => {
     try {
       const { page, limit, offset } = getPaginationParams(req.query, 10);
+      const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 254).toLowerCase() : '';
+      const searchWhere = search ? {
+        [Op.or]: ['name', 'apellido', 'email'].map((field) => where(fn('instr', fn('lower', col(field)), search), { [Op.gt]: 0 })),
+      } : {};
 
       const { count, rows: usuarios } = await User.findAndCountAll({
+        where: searchWhere,
         attributes: {
           exclude: ['password', 'carrito', 'sessionVersion', 'resetTokenHash', 'resetTokenExpires'],
         },

@@ -1,4 +1,5 @@
 module.exports = {
+  CorporateMovement: require('./CorporateMovement'),
   Categoria: require('./Categoria'),
   Cliente: require('./Cliente'),
   Cupon: require('./Cupon'),

@@ -3,6 +3,8 @@ const bcrypt = require("bcryptjs");
 const sequelize = require("../config/database");
 
 const User = sequelize.define("User", {
+    corporateEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    corporateBalanceCents: { type: DataTypes.BIGINT, allowNull: false, defaultValue: 0 },
     sessionVersion: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     resetTokenHash: { type: DataTypes.STRING, allowNull: true },
     resetTokenExpires: { type: DataTypes.DATE, allowNull: true },
