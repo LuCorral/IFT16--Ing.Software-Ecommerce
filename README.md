@@ -437,6 +437,10 @@ DELETE /api/tickets/:id
 
 ---
 
+## Gestión de cuenta — Sprint 3
+
+Mi perfil permite modificar datos personales, cambiar la contraseña y eliminar la cuenta con confirmación. Desde el login se puede solicitar recuperación por correo SMTP. Configuración, API, migración y pruebas: [Gestión de cuenta](SPRINT3-CUENTAS.md).
+
 ## Notificaciones por correo simuladas
 
 No se envía ningún email real: cada notificación se persiste en la tabla `notificaciones_correo` (`pedido_id`, `destinatario`, `asunto`, `cuerpo`, `estado_pedido`, `fecha`).

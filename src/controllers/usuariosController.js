@@ -11,7 +11,7 @@ const usuariosController = {
 
       const { count, rows: usuarios } = await User.findAndCountAll({
         attributes: {
-          exclude: ['password', 'carrito'],
+          exclude: ['password', 'carrito', 'sessionVersion', 'resetTokenHash', 'resetTokenExpires'],
         },
         order: [['id', 'ASC']],
         limit,
@@ -33,7 +33,7 @@ const usuariosController = {
     try {
       const usuario = await User.findByPk(req.params.id, {
         attributes: {
-          exclude: ['password', 'carrito'],
+          exclude: ['password', 'carrito', 'sessionVersion', 'resetTokenHash', 'resetTokenExpires'],
         },
       });
 
@@ -166,7 +166,7 @@ const usuariosController = {
 
       const usuarioActualizado = await User.findByPk(usuario.id, {
         attributes: {
-          exclude: ['password', 'carrito'],
+          exclude: ['password', 'carrito', 'sessionVersion', 'resetTokenHash', 'resetTokenExpires'],
         },
       });
 

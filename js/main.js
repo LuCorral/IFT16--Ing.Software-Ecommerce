@@ -1416,13 +1416,7 @@ async function loadUserProfile() {
     if (!response.ok)
       throw new Error(data.message || 'No se pudo cargar el perfil');
 
-    container.innerHTML = `
-      <dl class="profile-details">
-        <div><dt>Nombre</dt><dd>${escapeHtml(data.user.name)}</dd></div>
-        <div><dt>Apellido</dt><dd>${escapeHtml(data.user.apellido)}</dd></div>
-        <div><dt>Email</dt><dd>${escapeHtml(data.user.email)}</dd></div>
-      </dl>
-    `;
+    window.renderAccountProfile(container, data.user);
   } catch (error) {
     container.innerHTML = `<p class="error-message">${escapeHtml(error.message)}</p>`;
   }

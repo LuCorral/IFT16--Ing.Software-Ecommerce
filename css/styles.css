@@ -2661,6 +2661,17 @@ footer p span {
     }
 }
 
+/* Gestión de cuenta */
+.account-form { margin-top: 24px; padding-top: 20px; border-top: 1px solid #dce2e8; text-align: left; }
+.account-form h2 { margin-bottom: 16px; font-size: 1.3rem; }
+.account-status { min-height: 1.5em; margin-top: 12px; overflow-wrap: anywhere; }
+.account-danger > .btn-auth { background: #a52626; margin-top: 16px; }
+.account-form dialog { width: min(460px, calc(100vw - 32px)); max-height: 90vh; margin: auto; padding: 24px; border: 0; border-radius: 12px; overflow-y: auto; }
+.account-form dialog::backdrop { background: #0008; }
+.account-actions { display: flex; gap: 12px; align-items: center; }
+.account-actions button { padding: 12px; cursor: pointer; }
+.account-form button:disabled { opacity: .6; cursor: wait; }
+
 /* Mis pedidos: apilado a una columna para no comprimir los nombres de producto */
 @media (max-width: 900px) {
     .order-item {
