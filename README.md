@@ -437,6 +437,10 @@ DELETE /api/tickets/:id
 
 ---
 
+## Crédito corporativo — SCRUM-104
+
+Desde Gestión de usuarios, un administrador puede buscar clientes, activar el beneficio corporativo, sumar crédito y consultar saldo y movimientos. El cliente conserva su rol y no puede modificar estos valores. API, migración y validaciones: [Asignación de crédito corporativo](SCRUM-104-CREDITO-CORPORATIVO.md).
+
 ## Gestión de cuenta — Sprint 3
 
 Mi perfil permite modificar datos personales, cambiar la contraseña y eliminar la cuenta con confirmación. Desde el login se puede solicitar recuperación por correo SMTP. Configuración, API, migración y pruebas: [Gestión de cuenta](SPRINT3-CUENTAS.md).

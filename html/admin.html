@@ -1003,6 +1003,17 @@
     width: 200px;
 }
 
+#customers-container .admin-table th:nth-child(6),
+#customers-container .admin-table td:nth-child(6) {
+    width: 280px;
+}
+
+#customers-container .admin-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+    white-space: normal;
+}
+
 /* ===== TABLA DE DESCUENTOS ===== */
 
 #coupons-container .admin-table th:nth-child(1),
@@ -1289,6 +1300,12 @@
                     </div>
                 </div>
 
+                <form id="customer-search-form" class="corporate-search" role="search">
+                    <label for="customer-search">Buscar usuario por nombre o email</label>
+                    <input id="customer-search" type="search" maxlength="254" placeholder="Nombre, apellido o correo">
+                    <button type="submit" class="btn-hero">Buscar</button>
+                    <button type="button" id="customer-search-clear">Limpiar</button>
+                </form>
                 <div class="admin-card" id="customers-container">
                     <div class="loading-spinner">
                         <i class="fa-solid fa-spinner fa-pulse"></i>
@@ -1502,6 +1519,8 @@
                     limit: String(limit)
                 });
 
+                const search = document.getElementById('customer-search')?.value.trim();
+                if (search) params.set('search', search);
                 return `/api/usuarios?${params.toString()}`;
             }
 
@@ -1946,7 +1965,7 @@
                             container.innerHTML = `
                                 <div class="empty-state">
                                     <i class="fa-solid fa-users"></i>
-                                    <p>No hay clientes registrados</p>
+                                    <p>No se encontraron usuarios</p>
                                 </div>
                             `;
                         }
@@ -1966,6 +1985,7 @@
                                         <th>Nombre</th>
                                         <th>Email</th>
                                         <th>Rol</th>
+                                        <th>Beneficio corporativo</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -1982,7 +2002,9 @@
                                 <td><strong>${escapeHtml(nombre)}</strong></td>
                                 <td>${escapeHtml(customer.email || '')}</td>
                                 <td><span class="role-badge role-${rol}">${rol === 'admin' ? 'Administrador' : 'Cliente'}</span></td>
+                                <td>${customer.corporateEnabled ? 'Activo' : 'Inactivo'}<br>${window.formatCorporateMoney(customer.corporateBalanceCents || 0)}</td>
                                 <td class="admin-actions">
+                                    ${customer.role === 'client' ? `<button class="btn-edit" onclick="openCorporateBenefit(${customer.id})">Crédito corporativo</button>` : ''}
                                     <button class="btn-edit" onclick="editCustomer(${customer.id})">
                                         <i class="fa-solid fa-pencil"></i> Editar
                                     </button>
@@ -2952,5 +2974,6 @@ async function loadAdminOrders() {
             window.exportCouponsCsv = exportCouponsCsv;
      })();
     </script>
+    <script src="/js/corporate-admin.js?v=sprint3"></script>
 </body>
 </html>

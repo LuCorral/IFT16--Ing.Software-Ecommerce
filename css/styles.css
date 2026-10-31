@@ -2661,6 +2661,24 @@ footer p span {
     }
 }
 
+/* Beneficio corporativo en administración */
+.corporate-search { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px; }
+.corporate-search label { flex-basis: 100%; font-weight: 600; }
+.corporate-search input { flex: 1 1 240px; min-width: 0; padding: 12px; border: 1px solid #cbd5db; border-radius: 8px; }
+.corporate-search .btn-hero { margin: 0; }
+.corporate-search button { padding: 10px 18px; cursor: pointer; }
+.corporate-dialog { width: min(760px, calc(100vw - 32px)); max-height: 90vh; padding: 28px; margin: auto; border: 0; border-radius: 14px; color: #203135; }
+.corporate-dialog::backdrop { background: #14282c99; }
+.corporate-dialog > p { margin: 12px 0; overflow-wrap: anywhere; }
+.corporate-dialog .account-form { display: grid; gap: 14px; margin: 20px 0; }
+.corporate-dialog input[type=number] { width: 100%; min-width: 0; padding: 12px; border: 1px solid #cbd5db; border-radius: 8px; }
+.corporate-dialog input[type=checkbox] { accent-color: #147773; }
+.corporate-dialog h3 { margin: 20px 0 12px; }
+.corporate-dialog button { cursor: pointer; }
+.corporate-dialog button:disabled, .corporate-dialog input:disabled { opacity: .55; cursor: not-allowed; }
+.corporate-dialog #corporate-status { min-height: 24px; font-weight: 600; }
+.corporate-dialog .admin-table th, .corporate-dialog .admin-table td { padding: 10px; white-space: nowrap; }
+
 /* Gestión de cuenta */
 .account-form { margin-top: 24px; padding-top: 20px; border-top: 1px solid #dce2e8; text-align: left; }
 .account-form h2 { margin-bottom: 16px; font-size: 1.3rem; }
