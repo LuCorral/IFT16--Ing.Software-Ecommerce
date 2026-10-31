@@ -3,6 +3,9 @@ const bcrypt = require("bcryptjs");
 const sequelize = require("../config/database");
 
 const User = sequelize.define("User", {
+    sessionVersion: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    resetTokenHash: { type: DataTypes.STRING, allowNull: true },
+    resetTokenExpires: { type: DataTypes.DATE, allowNull: true },
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,

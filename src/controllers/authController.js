@@ -6,7 +6,7 @@ const authController = {
   profile: async (req, res) => {
     try {
       const user = await User.findByPk(req.user.id, {
-        attributes: ['id', 'name', 'apellido', 'email'],
+        attributes: ['id', 'name', 'apellido', 'email', 'telefono'],
       });
 
       if (!user) {
@@ -23,6 +23,7 @@ const authController = {
           name: user.name,
           apellido: user.apellido,
           email: user.email,
+          telefono: user.telefono,
         },
       });
     } catch (error) {
@@ -36,11 +37,11 @@ const authController = {
 
   login: async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password } = req.body || {};
 
       const normalizedEmail =
         typeof email === 'string' ? email.trim().toLowerCase() : '';
-      if (!normalizedEmail || !password) {
+      if (!normalizedEmail || typeof password !== 'string' || !password) {
         return res.status(400).json({
           success: false,
           message: 'Email y password son obligatorios',
@@ -73,6 +74,7 @@ const authController = {
         apellido: user.apellido,
         email: user.email,
         role: user.role,
+        sessionVersion: user.sessionVersion,
       };
 
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -130,10 +132,10 @@ const authController = {
           .json({ success: false, message: 'Ingresá un email válido' });
       }
 
-      if (password.length < 6) {
+      if (password.length < 6 || Buffer.byteLength(password, 'utf8') > 72) {
         return res.status(400).json({
           success: false,
-          message: 'La contraseña debe tener al menos 8 caracteres',
+          message: 'La contraseña debe tener al menos 6 caracteres y no ser demasiado larga',
         });
       }
 
