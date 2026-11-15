@@ -53,10 +53,14 @@ case "$operation" in
       echo "Release files were not uploaded." >&2
       exit 1
     }
-    mkdir -p "$(dirname "$database_path")"
+    [[ -f "$database_path" ]] || {
+      echo "La base persistente existente no está disponible; no se crea ni reemplaza." >&2
+      exit 1
+    }
     cd "$release_dir"
     export NODEJS_VERSION=22
     export DB_STORAGE="$database_path"
+    export DB_DEPLOY_AUDIT=1
     npm run migrate
     ;;
   activate)

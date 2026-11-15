@@ -1,5 +1,9 @@
 # Verificación e implementación de las ocho HU
 
+## Integración y despliegue autorizados
+
+El usuario autorizó integrar `8acfa5d` a main y desplegar Alwaysdata. Antes de integrar se agregaron guardas al flujo existente: comprobar vía API que el sitio usa la base persistente esperada y SMTP Ethereal en modo demo, sin imprimir ni cambiar secretos; bloquear si falta configuración indispensable o apunta a correo real. La migración exige una base existente, usa el respaldo previo existente y comprueba integridad SQLite y cantidades de filas por tabla antes/después. No se copian bases locales ni se ejecutan seeds en el despliegue. Los respaldos se prueban en SQLite temporal y se verifican en los logs del despliegue. Las pruebas de Python de la guarda se ejecutan en CI Ubuntu; el Python local es un alias de Windows no disponible.
+
 Base: `origin/main` de87de4. Rama: `feature/cuentas-credito-notificaciones-metricas`.
 El árbol inicial estaba limpio; `main` estaba 22 commits detrás del remoto y se conservó sin modificar. El 14/11/2026 el usuario autorizó commit y push exclusivamente a esta rama. No se autorizaron merge a main ni despliegue. Las menciones de «sin commit/push» más abajo describen etapas anteriores a esta autorización.
 

@@ -36,6 +36,18 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Test academic mail deployment guard
+        run: python3 tests/test_academic_mail.py
+
+      - name: Verify academic mail and persistent database configuration
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          API_TOKEN: ${{ secrets.ALWAYSDATA_API_TOKEN }}
+          ACCOUNT: ${{ vars.ALWAYSDATA_ACCOUNT }}
+          SITE_ID: ${{ vars.ALWAYSDATA_SITE_ID }}
+          DB_STORAGE: ${{ vars.ALWAYSDATA_DB_STORAGE }}
+        run: python3 scripts/check-academic-mail.py
+
   deploy:
     name: Deploy alwaysdata demo
     needs: verify
