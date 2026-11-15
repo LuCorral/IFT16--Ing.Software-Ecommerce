@@ -12,10 +12,11 @@
     return data;
   };
   let selectedId, requestId, pendingAmount, busy = false;
+  const movementActor = (item) => item.requestId?.startsWith('redeem:') ? `Canje del pedido #${Number(item.requestId.slice(7))}` : item.requestId?.startsWith('refund:') ? `Reintegro del pedido #${Number(item.requestId.slice(7))}` : item.adminId == null ? 'Administrador eliminado' : `Admin #${Number(item.adminId)}`;
   async function refreshMovements(page = 1) {
     const result = await api(`${selectedId}/movimientos-corporativos?page=${page}`);
     const container = document.getElementById('corporate-movements');
-    container.innerHTML = result.items.length ? `<div class="admin-table-container"><table class="admin-table"><thead><tr><th>Fecha</th><th>Administrador</th><th>Importe</th><th>Saldo resultante</th></tr></thead><tbody>${result.items.map((item) => `<tr><td>${escape(new Date(item.createdAt).toLocaleString('es-AR'))}</td><td>${item.adminId == null ? 'Usuario eliminado' : `Admin #${Number(item.adminId)}`}</td><td>${money(item.amountCents)}</td><td>${money(item.balanceAfterCents)}</td></tr>`).join('')}</tbody></table></div>` : '<p>Todavía no hay movimientos.</p>';
+    container.innerHTML = result.items.length ? `<div class="admin-table-container"><table class="admin-table"><thead><tr><th>Fecha</th><th>Origen del movimiento</th><th>Importe</th><th>Saldo resultante</th></tr></thead><tbody>${result.items.map((item) => `<tr><td>${escape(new Date(item.createdAt).toLocaleString('es-AR'))}</td><td>${escape(movementActor(item))}</td><td>${money(item.amountCents)}</td><td>${money(item.balanceAfterCents)}</td></tr>`).join('')}</tbody></table></div>` : '<p>Todavía no hay movimientos.</p>';
     if (result.pagination.hasPreviousPage || result.pagination.hasNextPage) {
       const controls = document.createElement('div'); controls.className = 'account-actions';
       for (const [label, next, enabled] of [['Anterior', page - 1, result.pagination.hasPreviousPage], ['Siguiente', page + 1, result.pagination.hasNextPage]]) {

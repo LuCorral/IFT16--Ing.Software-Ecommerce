@@ -8,6 +8,7 @@ const { authenticateToken, isAdmin } = require("../middlewares/authMiddleware");
 router.post("/login", authController.login);
 router.post("/register", authController.register);
 router.get("/profile", authenticateToken, authController.profile);
+router.get('/corporate-balance', authenticateToken, require('../controllers/corporateController').ownBalance);
 router.put('/profile', authenticateToken, accountController.updateProfile);
 router.put('/password', authenticateToken, accountRateLimit, accountController.changePassword);
 router.post('/forgot-password', accountRateLimit, accountController.forgotPassword);

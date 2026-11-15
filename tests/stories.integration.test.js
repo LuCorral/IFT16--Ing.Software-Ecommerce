@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+process.env.SMTP_HOST = '';
 const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');

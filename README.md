@@ -1,5 +1,59 @@
 # EcommerceApp2
 
+## Canje, correos y métricas — Sprint 3
+
+En Mis pedidos se muestran método, Pagar y Cancelar pedido para pendientes, junto con crédito aplicado y diferencia. Se retiraron el aviso y control de rechazo de esa sección por presentación; el pago sigue siendo una **demostración académica sin cargos reales**. El servidor conserva el resultado rechazado para pruebas automáticas. La recepción usa el estado final del checkout: Pagado si el crédito cubre todo, Pendiente si falta pagar una diferencia. La aprobación de la diferencia genera su confirmación de pago; reintentar no genera correos adicionales.
+
+Navegación de inventario desde Métricas: las tarjetas **Stock bajo** y **Sin stock** abren Gestión de productos con un filtro activo visible y opción para quitarlo. Funcionan con clic, Tab + Enter o Espacio. El listado conserva imagen, nombre, categoría, precio, stock y la edición existente; al guardar vuelve a consultar el filtro desde la primera página. Un listado vacío informa que no hay coincidencias. `GET /api/productos/inventario?stockFilter=low|empty` requiere administrador y consulta stock actual: `low` = 1..5 inclusive; `empty` = 0. Admite nombre, categoría y paginación; no aplica mes/año ni vigencia del catálogo para coincidir con los contadores de inventario. Es una mejora de navegación complementaria a SCRUM-135, sin cambiar sus cálculos.
+
+Prueba manual: en Métricas activar ambas tarjetas con ratón y teclado, comprobar los stocks del listado y su filtro, editar un producto para que salga del rango y verificar que desaparece al guardar, quitar el filtro y comprobar el listado habitual. Probar un rango sin coincidencias y cambiar el mes del dashboard: el inventario sigue siendo actual. Realizar estos cambios solo en la demo aislada.
+
+El alcance y las decisiones acordadas están en [IMPLEMENTACION-HU.md](IMPLEMENTACION-HU.md). Las notas SPRINT3-CUENTAS.md y SCRUM-104-CREDITO-CORPORATIVO.md describen incrementos anteriores; la consulta y el canje se agregan en esta rama.
+
+**Canje:** desde Carrito marcar **Usar mi crédito corporativo**. El servidor aplica el máximo disponible al total después del cupón. Si cubre todo, el pedido queda Pagado con comprobante; si falta una parte, queda Pendiente y se paga la diferencia desde Mis pedidos con el mecanismo simulado existente. Cancelar un pendiente propio restituye stock y todo el crédito utilizado una sola vez: esta devolución es una regla adicional acordada. Un pedido pagado no se cancela desde esa opción.
+
+`POST /api/pedidos` acepta `useCredit: boolean` y `requestId: UUID`. La clave es obligatoria al elegir crédito; la interfaz la envía siempre y la conserva ante error de red. Un reintento devuelve 200 con el pedido existente; misma clave con otros datos devuelve 409. `POST /api/pedidos/:id/pagar` cobra solo la diferencia; un pago aprobado repetido devuelve el resultado existente. Los importes de crédito están en centavos; `Pago.monto` sigue en pesos.
+
+**Correos:** el panel agrega **Correos de pedidos**, con estado, intentos, contenido, captura Ethereal y reintento de fallos confirmados. API administrativa: `GET /api/notificaciones-correo?page=1` y `POST /api/notificaciones-correo/:id/reintentar`. La generación del evento es atómica con la operación y el envío ocurre después del commit. Si SMTP falla, la operación se conserva. Las desconexiones ambiguas y envíos interrumpidos requieren cotejo manual; no se reenvían automáticamente. Un cambio administrativo a Pagado sin aprobación registrada no confirma un pago.
+
+Configurar `.env` con credenciales de una cuenta Ethereal propia, fuera del repositorio:
+
+```dotenv
+ORDER_MAIL_MODE=demo
+SMTP_HOST=smtp.ethereal.email
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_FROM=cuenta-ethereal@ethereal.email
+SMTP_USER=cuenta-ethereal@ethereal.email
+SMTP_PASSWORD=credencial-privada
+ORDER_MAIL_TO=casilla-de-prueba@example.test
+```
+
+En modo demo solo se permite el host Ethereal; captura mensajes sin entregarlos. `ORDER_MAIL_TO` es opcional: vacío usa al propietario, sin modificar su cuenta. Para entrega en un entorno real se debe configurar explícitamente `ORDER_MAIL_MODE=real` y SMTP del proveedor. La aprobación del pago seguirá identificada como simulada hasta integrar acreditación real. Se reutiliza el transporte de recuperación de contraseña, pero `ORDER_MAIL_TO` afecta únicamente a pedidos.
+
+Verificación SMTP opcional: `node scripts/verify-ethereal-demo.js --ethereal`. Crea cuenta Ethereal temporal y base descartable; realiza recepción, pago simulado, envío, entrega y cancelación, exige seis capturas y muestra sus enlaces. Requiere acceso a la API de Ethereal y SMTP 587. No se ejecuta desde `npm test` y no usa datos reales.
+
+**Métricas:** panel **Métricas**, filtro mes/año actual por defecto. `GET /api/metricas?month=2&year=2026` requiere administrador. Usa `createdAt`, meses calendario de Buenos Aires con inicio inclusivo y siguiente mes exclusivo. Total/desglose incluyen todos los pedidos; ventas/ticket solo Pagado, Enviado y Entregado con Pago Aprobado. Incluye aprobaciones de demostración. Mixtos cuentan una vez por el total. Stock bajo (1..5, regla adicional acordada) y sin stock (=0) son datos actuales independientes del mes. Vacíos devuelven cero.
+
+Migraciones aditivas 005 y 006 se ejecutan por el mecanismo existente al arrancar o mediante `npm run migrate`, con respaldo previo. No necesitan seeds. Los correos simulados históricos quedan como `legado` y no se reenvían. Primero probar sobre una copia local descartable; no iniciar este procedimiento sobre una base real durante las pruebas.
+
+Pruebas manuales, con datos locales de prueba:
+
+1. Cuenta: editar perfil, recargar y verificar persistencia; cancelar el diálogo de baja y comprobar que la sesión continúa; confirmar baja de una cuenta descartable y verificar que no puede acceder a sus pedidos ni iniciar sesión.
+2. Crédito: asignar saldo menor al carrito, comprar con crédito y verificar diferencia; cancelar y comprobar saldo/stock restaurados. Repetir la petición de cancelación no suma otro reintegro. Repetir con saldo suficiente: Pagado, comprobante con crédito y cancelación rechazada. Los rechazos siguen cubiertos por las pruebas automáticas de la API; ya no tienen un control en Mis pedidos.
+3. Correos: configurar Ethereal, comprar, aprobar el pago y cambiar a Enviado/Entregado; cancelar otro pendiente. Revisar contenido y capturas en el panel. El rechazo se verifica en las pruebas automáticas: no genera correo de aprobación. Un estado repetido tampoco genera otro correo. Configurar temporalmente un host incompatible con demo para provocar fallo: la compra se conserva; corregir configuración y reintentar desde el panel.
+4. Métricas: comparar un mes con pedidos de distintos estados y otro sin pedidos; comprobar ventas solo con aprobación y límites de mes. Cambiar stock y verificar que sus contadores cambian independientemente del período. Un cliente recibe 403 al consultar la API administrativa.
+
+### Consulta de saldo corporativo (SCRUM-108)
+
+En **Mi perfil**, los clientes pueden consultar su saldo en ARS y la condición activa/inactiva del beneficio. **Actualizar saldo** vuelve a consultar el servidor; los errores se muestran con opción de reintentar. Un beneficio inactivo conserva el saldo y no se presenta como crédito utilizable.
+
+`GET /api/auth/corporate-balance` requiere JWT de cliente y devuelve `corporateEnabled`, `corporateBalanceCents` (entero en centavos) y `currency: "ARS"`. La identidad se obtiene exclusivamente de la sesión. No admite seleccionar otro usuario y no permite modificar saldo. No necesita migraciones ni configuración adicional.
+
+Verificación manual en una base local descartable: iniciar sesión como cliente, abrir Mi perfil, consultar saldo cero; desde otra sesión administrativa activar beneficio y asignar crédito; pulsar Actualizar saldo y recargar para confirmar persistencia. Desactivar el beneficio debe conservar saldo y mostrar condición inactiva. Sin sesión, la API devuelve 401; con administrador devuelve 403. Simular falta de conexión debe mostrar error y permitir reintentar.
+
+`npm.cmd test` en Windows ejecuta las pruebas con bases temporales y correo sustituido. Usar Node 22.x según `engines`. No ejecutar seeds sobre bases reales. Estado de las ocho historias y decisiones pendientes: [IMPLEMENTACION-HU.md](IMPLEMENTACION-HU.md).
+
 Proyecto grupal desarrollado para la materia **Prácticas Profesionalizantes 2** del IFTS 16.
 
 EcommerceApp2 es una aplicación web de tienda online construida con **Node.js**, **Express**, **Sequelize** y **SQLite**. El backend expone una **API REST** organizada con patrón **MVC**, sirve el frontend estático y aplica seguridad con **JWT**, roles de usuario y contraseñas hasheadas con **bcryptjs**.

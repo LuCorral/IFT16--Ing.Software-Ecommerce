@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+process.env.SMTP_HOST = '';
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -46,6 +47,13 @@ test('production environment validation requires persistent, private configurati
   );
 });
 
+test('deployment audit detects row loss and missing tables', () => {
+  const { verifyDatabaseState } = require('../scripts/database-deployment-audit');
+  verifyDatabaseState({ Users: 2, Pedidos: 3 }, { Users: 2, Pedidos: 4, NewTable: 0 });
+  assert.throws(() => verifyDatabaseState({ Users: 2 }, { Users: 1 }), /row count decreased/);
+  assert.throws(() => verifyDatabaseState({ Pedidos: 3 }, {}), /row count decreased/);
+});
+
 test('schema setup is repeatable, preserves rows, and snapshots a database before migrations', async () => {
   await sequelize.sync();
   const existingUser = await User.create({
@@ -56,13 +64,26 @@ test('schema setup is repeatable, preserves rows, and snapshots a database befor
     role: 'client',
   });
 
+  const { captureDatabaseState, verifyDatabaseState } = require('../scripts/database-deployment-audit');
+  const before = await captureDatabaseState(sequelize);
+
   await initializeDatabase(sequelize);
   await initializeDatabase(sequelize);
+  verifyDatabaseState(before, await captureDatabaseState(sequelize));
 
   assert.equal((await User.findByPk(existingUser.id)).email, 'persistent@example.test');
   const indexes = await sequelize.getQueryInterface().showIndex(User.sequelize.models.Pedido.getTableName());
   assert.ok(indexes.some((index) => index.name === 'pedidos_cliente_idx'));
   assert.equal(fs.readdirSync(testDirectory).filter((file) => file.endsWith('.bak')).length, 1);
+  const backupFile = fs.readdirSync(testDirectory).find((file) => file.endsWith('.bak'));
+  const sqlite = require('sqlite3');
+  const backup = new sqlite.Database(path.join(testDirectory, backupFile), sqlite.OPEN_READONLY);
+  try {
+    const row = await new Promise((resolve, reject) => backup.get('SELECT COUNT(*) AS count FROM Users', (error, result) => error ? reject(error) : resolve(result)));
+    assert.equal(row.count, before.Users);
+    const check = await new Promise((resolve, reject) => backup.get('PRAGMA quick_check', (error, result) => error ? reject(error) : resolve(result)));
+    assert.equal(Object.values(check)[0], 'ok');
+  } finally { await new Promise((resolve, reject) => backup.close((error) => error ? reject(error) : resolve())); }
 });
 
 test('explicit demo data setup is idempotent and does not reset existing records', async () => {

@@ -57,7 +57,7 @@ function showEmailToast(correo, { duracion = EMAIL_TOAST_DURATION } = {}) {
     <button type="button" class="email-toast__close" aria-label="Cerrar notificación">&times;</button>
     <p class="email-toast__eyebrow">
       <i class="fa-solid fa-envelope" aria-hidden="true"></i>
-      Correo simulado · ${escapeHtml(correo.estado_pedido || 'sin estado')}
+      Correo registrado · ${escapeHtml(correo.estado_pedido || 'sin estado')} · Entrega pendiente de verificar
     </p>
     <h3 class="email-toast__subject">${escapeHtml(correo.asunto)}</h3>
     <p class="email-toast__meta">Para: ${escapeHtml(correo.destinatario || 'sin destinatario')}</p>
@@ -254,6 +254,9 @@ function showPurchaseConfirmation(data, cart) {
         <div><span>Orden</span><strong>${orderCode}</strong></div>
         <div><span>Productos</span><strong>${totalItems}</strong></div>
         <div><span>Total</span><strong>$${totalFinal.toLocaleString('es-AR')}</strong></div>
+        <div><span>Crédito aplicado</span><strong>${formatOrderCurrency(Number(pedido.creditUsedCents || 0) / 100)}</strong></div>
+        <div><span>Diferencia</span><strong>${formatOrderCurrency(Math.max(0, totalFinal - Number(pedido.creditUsedCents || 0) / 100))}</strong></div>
+        <div><span>Estado</span><strong>${escapeHtml(pedido.estado || '')}</strong></div>
       </div>
       <div class="purchase-modal-actions">
         <button type="button" class="btn-buy" id="purchase-home">Ir al inicio</button>
@@ -965,17 +968,16 @@ async function loadUserOrders() {
         <ul>${items}</ul>
         <div class="order-summary">
           <strong>Total: ${formatOrderCurrency(order.total)}</strong>
+          <p>Crédito aplicado: ${formatOrderCurrency(Number(order.creditUsedCents || 0) / 100)} · Diferencia: ${formatOrderCurrency(Math.max(0, Number(order.total) - Number(order.creditUsedCents || 0) / 100))}</p>
           ${
             isPending && isClient
               ? `<div class="order-payment-actions">
-            <p class="payment-demo-note">Pago simulado: no se realiza ningún cargo real.</p>
             <label>Método
               <select data-payment-method="${orderId}">
                 <option value="tarjeta">Tarjeta</option>
                 <option value="transferencia">Transferencia</option>
               </select>
             </label>
-            <label><input type="checkbox" data-payment-rejection="${orderId}"> Simular rechazo</label>
             <button type="button" class="btn-pay-order" data-pay-order="${orderId}">Pagar</button>
           </div>`
               : ''
@@ -1011,9 +1013,6 @@ async function payOrder(orderId, button) {
   const method = document.querySelector(
     `[data-payment-method="${safeOrderId}"]`,
   )?.value;
-  const simulateRejection = document.querySelector(
-    `[data-payment-rejection="${safeOrderId}"]`,
-  )?.checked;
   const token = localStorage.getItem('token');
   if (!token) {
     showNotification('Iniciá sesión para pagar pedidos', 'error');
@@ -1032,7 +1031,6 @@ async function payOrder(orderId, button) {
         },
         body: JSON.stringify({
           metodo: method,
-          resultadoSimulado: simulateRejection ? 'rechazado' : 'aprobado',
         }),
       },
     );
@@ -1043,6 +1041,7 @@ async function payOrder(orderId, button) {
       data.mensaje,
       data.pago.estado === 'Rechazado' ? 'error' : 'success',
     );
+    showEmailToast(data.correo_simulado);
     await loadUserOrders();
   } catch (error) {
     showNotification(error.message, 'error');
@@ -1095,6 +1094,7 @@ async function viewReceipt(orderId) {
         <p>Subtotal: ${formatOrderCurrency(receipt.subtotal)}</p>
         <p>Descuento: -${formatOrderCurrency(receipt.descuento)}${receipt.cupon ? ` (${escapeHtml(receipt.cupon)})` : ''}</p>
         <p><strong>Total pagado: ${formatOrderCurrency(receipt.total)}</strong></p>
+        <p>Crédito corporativo: ${formatOrderCurrency(Number(receipt.creditUsedCents || 0) / 100)} · Medio de pago simulado: ${formatOrderCurrency(receipt.externalPaymentAmount || 0)}</p>
         <p>Método: ${escapeHtml(receipt.metodoPago)} · Pago: ${escapeHtml(receipt.estadoPago)}</p>
         <button type="button" class="btn-buy receipt-print">Imprimir comprobante</button>
       </section>
@@ -1180,21 +1180,26 @@ async function checkout() {
       return;
     }
 
+    const orderPayload = {
+      productos: cart.map((item) => ({ productoId: Number(item.id), cantidad: Number(item.quantity) })),
+      useCredit: document.getElementById('use-corporate-credit')?.checked === true,
+      cupon: sessionStorage.getItem('cuponAplicado') || '',
+    };
+    const signature = JSON.stringify(orderPayload);
+    const pendingKey = 'pending-checkout';
+    let pending;
+    try { pending = JSON.parse(sessionStorage.getItem(pendingKey)); } catch { pending = null; }
+    if (!pending || pending.signature !== signature || pending.session !== token) {
+      pending = { signature, requestId: crypto.randomUUID(), session: token };
+      sessionStorage.setItem(pendingKey, JSON.stringify(pending));
+    }
     const response = await fetch('/api/pedidos', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        productos: cart.map((item) => ({
-          productoId: Number(item.id),
-          cantidad: Number(item.quantity),
-        })),
-        ...(sessionStorage.getItem('cuponAplicado')
-          ? { cupon: sessionStorage.getItem('cuponAplicado') }
-          : {}),
-      }),
+      body: JSON.stringify({ ...orderPayload, requestId: pending.requestId }),
     });
     const data = await response.json();
     if (response.status === 401 || response.status === 403) {
@@ -1219,6 +1224,9 @@ async function checkout() {
       throw new Error(errorMessage);
     }
 
+    sessionStorage.removeItem(pendingKey);
+    const creditStatus = document.getElementById('checkout-credit-status');
+    if (creditStatus) creditStatus.textContent = `Crédito aplicado: ${formatOrderCurrency(Number(data.pedido.creditUsedCents || 0) / 100)}. Diferencia: ${formatOrderCurrency(Math.max(0, Number(data.total) - Number(data.pedido.creditUsedCents || 0) / 100))}. Estado: ${data.pedido.estado}.`;
     saveCart([]);
     renderCart();
     await loadUserOrders();
@@ -1423,6 +1431,7 @@ async function loadUserProfile() {
 }
 
 function clearUserSession() {
+  sessionStorage.removeItem('pending-checkout');
   ['token', 'userRole', 'userName', 'userSurname'].forEach((key) => {
     localStorage.removeItem(key);
   });

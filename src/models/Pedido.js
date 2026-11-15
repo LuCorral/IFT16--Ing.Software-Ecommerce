@@ -2,6 +2,9 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const Pedido = sequelize.define('Pedido', {
+  creditUsedCents: { type: DataTypes.BIGINT, allowNull: false, defaultValue: 0 },
+  checkoutRequestId: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  checkoutFingerprint: { type: DataTypes.STRING(64), allowNull: true },
   cliente: {
     type: DataTypes.STRING,
     allowNull: false
