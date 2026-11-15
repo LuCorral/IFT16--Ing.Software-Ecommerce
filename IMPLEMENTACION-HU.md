@@ -2,6 +2,8 @@
 
 ## Integración y despliegue autorizados
 
+El 15/11/2026 el usuario autorizó generar una cuenta Ethereal y configurar las variables SMTP faltantes del sitio, conservando las demás. El flujo solo aprovisiona cuando la variable de repositorio `PROVISION_ETHEREAL_DEMO=true` se habilita explícitamente; no imprime las credenciales y comprueba que los valores ajenos a correo permanezcan iguales. Se retira esa habilitación tras configurar y validar. No se reemplazan cuentas de clientes ni la base publicada.
+
 El usuario autorizó integrar `8acfa5d` a main y desplegar Alwaysdata. Antes de integrar se agregaron guardas al flujo existente: comprobar vía API que el sitio usa la base persistente esperada y SMTP Ethereal en modo demo, sin imprimir ni cambiar secretos; bloquear si falta configuración indispensable o apunta a correo real. La migración exige una base existente, usa el respaldo previo existente y comprueba integridad SQLite y cantidades de filas por tabla antes/después. No se copian bases locales ni se ejecutan seeds en el despliegue. Los respaldos se prueban en SQLite temporal y se verifican en los logs del despliegue. Las pruebas de Python de la guarda se ejecutan en CI Ubuntu; el Python local es un alias de Windows no disponible.
 
 Base: `origin/main` de87de4. Rama: `feature/cuentas-credito-notificaciones-metricas`.
