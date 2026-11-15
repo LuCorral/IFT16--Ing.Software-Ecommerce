@@ -12,7 +12,7 @@
     "seed": "node seed_DB.js",
     "seed:coupons": "node seed_Cupones_DB.js",
     "seed:users": "node seed_Users_DB.js",
-    "seed:all": "node seed_Cupones_DB.js && node seed_DB.js && node seed_Users_DB.js"
+    "seed:prod": "node scripts/seed-dashboard-prod.js",    "seed:all": "node seed_Cupones_DB.js && node seed_DB.js && node seed_Users_DB.js"
   },
   "keywords": [],
   "author": "",
