@@ -33,6 +33,11 @@ async function findClient(id, transaction) {
 }
 
 module.exports = {
+  ownBalance: async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (req.user.role !== 'client') return res.status(403).json({ message: 'El saldo corporativo corresponde a clientes' });
+    res.json({ corporateEnabled: req.account.corporateEnabled, corporateBalanceCents: Number(req.account.corporateBalanceCents), currency: 'ARS' });
+  },
   setEnabled: handle(async (req, res) => {
     if (typeof req.body?.enabled !== 'boolean') throw problem('Indicá si el beneficio está activo');
     const user = await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (transaction) => {

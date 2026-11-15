@@ -41,6 +41,11 @@
   }
   window.renderAccountProfile = (container, user) => {
     container.innerHTML = `
+      <section id="account-corporate" class="account-form" hidden aria-labelledby="account-corporate-title">
+        <h2 id="account-corporate-title">Crédito corporativo</h2>
+        <p id="account-corporate-result" role="status" aria-live="polite">Consultando saldo…</p>
+        <button type="button" id="account-corporate-refresh" class="btn-auth">Actualizar saldo</button>
+      </section>
       <form id="account-profile" class="account-form">
         <h2>Datos personales</h2>
         ${field('name', 'Nombre', user.name, 'text', 'required maxlength="100" autocomplete="given-name"')}
@@ -68,6 +73,25 @@
           </form>
         </dialog>
       </section>`;
+    const corporate = document.getElementById('account-corporate');
+    const refreshBalance = async () => {
+      const button = document.getElementById('account-corporate-refresh');
+      const output = document.getElementById('account-corporate-result');
+      button.disabled = true;
+      output.textContent = 'Consultando saldo…';
+      try {
+        const response = await fetch('/api/auth/corporate-balance', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, cache: 'no-store' });
+        if (response.status === 403) { corporate.hidden = true; return; }
+        corporate.hidden = false;
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'No se pudo consultar el saldo');
+        const amount = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(data.corporateBalanceCents / 100);
+        output.textContent = `Saldo: ${amount} ARS. Beneficio ${data.corporateEnabled ? 'activo' : 'inactivo'}.`;
+      } catch (error) { corporate.hidden = false; output.textContent = error.message; }
+      finally { button.disabled = false; }
+    };
+    document.getElementById('account-corporate-refresh').onclick = refreshBalance;
+    refreshBalance();
     bind(document.getElementById('account-profile'), async (values, output) => {
       const result = await request('profile', 'PUT', values);
       localStorage.setItem('userName', result.user.name);

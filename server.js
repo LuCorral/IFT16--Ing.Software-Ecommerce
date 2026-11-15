@@ -99,6 +99,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/pedidos', pedidoRoutes);
+app.get('/api/metricas', authenticateToken, isAdmin, require('./src/controllers/metricsController'));
+app.get('/api/notificaciones-correo', authenticateToken, isAdmin, require('./src/controllers/mailController').list);
+app.post('/api/notificaciones-correo/:id/reintentar', authenticateToken, isAdmin, require('./src/controllers/mailController').retry);
 app.use(
   '/api/detalles-pedido',
   authenticateToken,

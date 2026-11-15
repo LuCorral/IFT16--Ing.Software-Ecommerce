@@ -5,12 +5,15 @@ const Cupon = require('../models/Cupon');
 const Pago = require('../models/Pago');
 const Ticket = require('../models/Ticket');
 const User = require('../models/User');
+const Movement = require('../models/CorporateMovement');
+const createReceipt = require('../utils/orderReceipt');
+const { createHash } = require('node:crypto');
 const {
   crearNotificacion,
   ESTADOS_NOTIFICABLES,
   normalizarEstado,
 } = require('../utils/notificacionesCorreo');
-const { Op } = require('sequelize');
+const { Op, Transaction } = require('sequelize');
 const sequelize = require('../config/database');
 
 const getOwnerTag = (user) => `demo-user:${user.id}:${user.email}`;
@@ -96,6 +99,10 @@ const pedidoController = {
 
   create: async (req, res) => {
     try {
+      if (req.user.role !== 'client') return res.status(403).json({ mensaje: 'Solo los clientes pueden crear pedidos' });
+      if (req.body.useCredit !== undefined && typeof req.body.useCredit !== 'boolean') return res.status(400).json({ mensaje: 'Indicá si querés utilizar crédito' });
+      const requestId = req.body.requestId;
+      if ((req.body.useCredit || requestId !== undefined) && (typeof requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(requestId))) return res.status(400).json({ mensaje: 'Se requiere un identificador de solicitud válido' });
       if (!Array.isArray(req.body.productos) || req.body.productos.length === 0) {
         return res.status(400).json({ mensaje: 'El pedido debe incluir productos válidos' });
       }
@@ -117,7 +124,17 @@ const pedidoController = {
         cantidades.set(productoId, (cantidades.get(productoId) || 0) + cantidad);
       }
 
-      const { pedido: pedidoCreado, notificacion } = await sequelize.transaction(async (transaction) => {
+      const fingerprint = createHash('sha256').update(JSON.stringify({ user: req.user.id, productos: [...cantidades].sort((a,b) => a[0]-b[0]), cupon: couponCode, useCredit: req.body.useCredit === true })).digest('hex');
+      const { pedido: pedidoCreado, notificacion, repeated } = await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (transaction) => {
+        if (requestId) {
+          const previous = await Pedido.findOne({ where: { checkoutRequestId: requestId }, transaction });
+          if (previous) {
+            if (previous.checkoutFingerprint !== fingerprint) throw Object.assign(new Error('Esta solicitud ya fue utilizada con otros datos'), { status: 409 });
+            return { pedido: previous, notificacion: null, repeated: true };
+          }
+        }
+        const account = await User.findByPk(req.user.id, { transaction });
+        if (req.body.useCredit && !account.corporateEnabled) throw Object.assign(new Error('El beneficio corporativo está inactivo'), { status: 409 });
         const lineas = [];
         let subtotal = 0;
         for (const [productoId, cantidad] of cantidades) {
@@ -152,7 +169,11 @@ const pedidoController = {
           descuento = roundMoney(subtotal - cupon.aplicarDescuento(subtotal));
         }
         const total = roundMoney(subtotal - descuento);
+        const totalCents = Math.round(total * 100);
+        if (!Number.isSafeInteger(totalCents) || totalCents < 0) throw Object.assign(new Error('Importe del pedido inválido'), { status: 400 });
+        const creditUsedCents = req.body.useCredit ? Math.min(Number(account.corporateBalanceCents), totalCents) : 0;
         const pedido = await Pedido.create({
+          creditUsedCents, checkoutRequestId: requestId || null, checkoutFingerprint: requestId ? fingerprint : null,
           cliente: getOwnerTag(req.user),
           fecha: new Date().toISOString().split('T')[0],
           estado: 'Pendiente',
@@ -194,18 +215,33 @@ const pedidoController = {
           }
         }
 
+        if (creditUsedCents > 0) {
+          const balance = Number(account.corporateBalanceCents) - creditUsedCents;
+          await account.update({ corporateBalanceCents: balance }, { transaction });
+          await Movement.create({ userId: account.id, adminId: null, amountCents: -creditUsedCents, balanceAfterCents: balance, requestId: `redeem:${pedido.id}` }, { transaction });
+        }
+
+        const paidWithCredit = req.body.useCredit && creditUsedCents === totalCents;
+        if (paidWithCredit) {
+          await pedido.update({ estado: 'Pagado' }, { transaction });
+          await Pago.create({ pedidoId: pedido.id, metodo: 'Crédito corporativo', monto: 0, estado: 'Aprobado', fecha: new Date() }, { transaction });
+          await createReceipt(pedido, account, 'Crédito corporativo', transaction);
+        }
         const notificacion = await crearNotificacion({
           pedido,
-          estado: 'Pendiente',
+          estado: pedido.estado,
+          tipo: 'recepcion',
           destinatario: req.user.email,
           transaction,
         });
-
-        return { pedido, notificacion };
+        if (paidWithCredit) {
+          await crearNotificacion({ pedido, estado: 'Pagado', destinatario: account.email, transaction });
+        }
+        return { pedido, notificacion, repeated: false };
       });
 
       const detalles = await DetallePedido.findAll({ where: { pedidoId: pedidoCreado.id } });
-      res.status(201).json({
+      res.status(repeated ? 200 : 201).json({
         mensaje: 'Pedido creado correctamente',
         pedido: orderResponse(pedidoCreado, {
           nombre: req.user.name,
@@ -226,18 +262,19 @@ const pedidoController = {
 
   cancel: async (req, res) => {
     try {
-      const pedido = await sequelize.transaction(async (transaction) => {
+      const pedido = await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (transaction) => {
         const pedidoActual = await Pedido.findByPk(req.params.id, { transaction });
         if (!pedidoActual) {
           const error = new Error('Pedido no encontrado');
           error.status = 404;
           throw error;
         }
-        if (!canAccessOrder(req.user, pedidoActual)) {
+        if (req.user.role !== 'client' || !canAccessOrder(req.user, pedidoActual)) {
           const error = new Error('Pedido no encontrado');
           error.status = 404;
           throw error;
         }
+        if (pedidoActual.estado === 'Cancelado') return pedidoActual;
         if (String(pedidoActual.estado).toLowerCase() !== 'pendiente') {
           const error = new Error('Solo se pueden cancelar pedidos pendientes');
           error.status = 400;
@@ -271,6 +308,13 @@ const pedidoController = {
           await producto.update({ stock: producto.stock + detalle.cantidad }, { transaction });
         }
         pedidoActual.estado = 'Cancelado';
+        if (Number(pedidoActual.creditUsedCents) > 0) {
+          const account = await User.findByPk(req.user.id, { transaction });
+          const balance = Number(account.corporateBalanceCents) + Number(pedidoActual.creditUsedCents);
+          await account.update({ corporateBalanceCents: balance }, { transaction });
+          await Movement.create({ userId: account.id, adminId: null, amountCents: pedidoActual.creditUsedCents, balanceAfterCents: balance, requestId: `refund:${pedidoActual.id}` }, { transaction });
+        }
+        await crearNotificacion({ pedido: pedidoActual, estado: 'Cancelado', destinatario: req.user.email, transaction });
         return pedidoActual;
       });
       res.json({ mensaje: 'Pedido cancelado y stock restituido', pedido });
@@ -295,7 +339,7 @@ const pedidoController = {
     }
 
     try {
-      const result = await sequelize.transaction(async (transaction) => {
+      const result = await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (transaction) => {
         const pedido = await Pedido.findByPk(req.params.id, { transaction });
         if (!pedido || !canAccessOrder(req.user, pedido)) {
           const error = new Error('Pedido no encontrado');
@@ -303,10 +347,14 @@ const pedidoController = {
           throw error;
         }
         if (pedido.estado !== 'Pendiente') {
+          const previous = await Pago.findOne({ where: { pedidoId: pedido.id, estado: 'Aprobado' }, transaction });
+          if (previous && ['Pagado', 'Enviado', 'Entregado'].includes(pedido.estado)) return { pago: previous, comprobante: await Ticket.findOne({ where: { id_pedido: pedido.id }, transaction }), estadoPedido: pedido.estado, notificacion: null };
           const error = new Error('Solo se pueden pagar pedidos pendientes');
           error.status = 400;
           throw error;
         }
+
+        if (await Pago.findOne({ where: { pedidoId: pedido.id, estado: 'Aprobado' }, transaction })) throw Object.assign(new Error('El pedido ya tiene un pago aprobado; revisá su estado'), { status: 409 });
 
         const aprobado = String(resultadoSimulado).toLowerCase() === 'aprobado';
         const estadoPago = aprobado ? 'Aprobado' : 'Rechazado';
@@ -314,7 +362,7 @@ const pedidoController = {
         const pago = await Pago.create({
           pedidoId: pedido.id,
           metodo: metodoPago,
-          monto: pedido.total,
+          monto: roundMoney(pedido.total - Number(pedido.creditUsedCents) / 100),
           estado: estadoPago,
           fecha: new Date(),
         }, { transaction });
@@ -369,7 +417,7 @@ const pedidoController = {
           }, { transaction });
 
           notificacion = await crearNotificacion({
-            pedido: { id: pedido.id, total: pedido.total },
+            pedido,
             estado: 'Pagado',
             destinatario: user.email,
             transaction,
@@ -380,7 +428,7 @@ const pedidoController = {
       });
 
       res.status(200).json({
-        mensaje: result.pago.estado === 'Aprobado' ? 'Pago aprobado' : 'Pago rechazado; el pedido continúa pendiente',
+        mensaje: result.pago.estado === 'Aprobado' ? 'Pago simulado aprobado (demostración)' : 'Pago simulado rechazado; el pedido continúa pendiente',
         pago: result.pago,
         estadoPedido: result.estadoPedido,
         simulado: true,
@@ -425,6 +473,8 @@ const pedidoController = {
         productos: JSON.parse(comprobante.detalles),
         subtotal: comprobante.subtotal,
         descuento: comprobante.descuento,
+        creditUsedCents: Number(pedido.creditUsedCents),
+        externalPaymentAmount: roundMoney(pedido.total - Number(pedido.creditUsedCents) / 100),
         cupon: comprobante.cuponCodigo,
         total: comprobante.total,
         metodoPago: comprobante.metodo_pago,
@@ -441,7 +491,7 @@ const pedidoController = {
     try {
       const estadosPermitidos = ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'];
 
-      const resultado = await sequelize.transaction(async (transaction) => {
+      const resultado = await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (transaction) => {
         const pedidoActual = await Pedido.findByPk(req.params.id, { transaction });
         if (!pedidoActual) {
           const error = new Error('Pedido no encontrado');
@@ -457,6 +507,7 @@ const pedidoController = {
         }
 
         const estadoAnterior = pedidoActual.estado;
+        if (Number(pedidoActual.creditUsedCents) > 0 && siguienteEstado !== estadoAnterior && !({ Pagado: 'Enviado', Enviado: 'Entregado' }[estadoAnterior] === siguienteEstado)) throw Object.assign(new Error('Este pedido con crédito requiere pago o cancelación transaccional del cliente'), { status: 409 });
         const [actualizado] = await Pedido.update(
           { estado: siguienteEstado },
           {
@@ -477,10 +528,10 @@ const pedidoController = {
         if (
           estadoNormalizado !== normalizarEstado(estadoAnterior)
           && ESTADOS_NOTIFICABLES.includes(estadoNormalizado)
+          && (estadoNormalizado !== 'pagado' || await Pago.findOne({ where: { pedidoId: pedidoActual.id, estado: 'Aprobado' }, transaction }))
         ) {
           const clienteInfo = await getOrderCustomer(pedidoActual.cliente);
-          const destinatario = clienteInfo?.email
-            || (String(pedidoActual.cliente || '').includes('@') ? pedidoActual.cliente : null);
+          const destinatario = clienteInfo?.email;
 
           notificacion = await crearNotificacion({
             pedido: pedidoActual,
@@ -514,6 +565,7 @@ const pedidoController = {
         return res.status(404).json({ mensaje: 'Pedido no encontrado' });
       }
 
+      if (Number(pedido.creditUsedCents) > 0) return res.status(409).json({ mensaje: 'Se conserva el historial de pedidos con crédito corporativo' });
       await DetallePedido.destroy({
         where: { pedidoId: req.params.id }
       });

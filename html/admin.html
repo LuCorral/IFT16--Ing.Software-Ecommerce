@@ -1185,6 +1185,7 @@
 
 </style>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/css/metrics-dashboard.css?v=dashboard1">
 </head>
 <body class="admin-body" hidden>
 
@@ -1219,6 +1220,8 @@
                             <i class="fa-solid fa-user"></i> Mi perfil
                         </button>
                     </li>
+                    <li><button class="sidebar-link" id="nav-metrics" onclick="switchAdminView('metrics')"><i class="fa-solid fa-chart-column"></i> Métricas</button></li>
+                    <li><button class="sidebar-link" id="nav-mail" onclick="switchAdminView('mail')"><i class="fa-solid fa-envelope"></i> Correos de pedidos</button></li>
                     <li class="sidebar-separator"></li>
                     <li>
     <button class="sidebar-link" onclick="window.location.href='../index.html'">
@@ -1236,6 +1239,23 @@
 
         <!-- Main Content -->
         <main class="admin-content">
+            <section id="admin-metrics" class="admin-section metrics-dashboard" hidden>
+                <div class="metrics-header">
+                <div><p class="metrics-eyebrow">Resumen de actividad</p><h2>Métricas del ecommerce</h2><p id="metrics-period" class="metrics-period"></p></div>
+                <form id="metrics-filter" class="metrics-filter">
+                    <div class="admin-filter-field"><label for="metrics-month">Mes</label><select id="metrics-month" class="admin-filter-control" required></select></div>
+                    <div class="admin-filter-field"><label for="metrics-year">Año</label><select id="metrics-year" class="admin-filter-control" required></select></div>
+                    <button type="submit" class="btn-filter-primary">Aplicar filtro</button>
+                </form>
+                </div>
+                <p class="metrics-demo"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> La demo incluye pagos simulados.</p>
+                <div id="metrics-result" aria-live="polite" aria-busy="false"></div>
+            </section>
+            <section id="admin-mail" class="admin-section" hidden>
+                <div class="section-header"><h2>Correos de pedidos</h2><button type="button" id="mail-refresh" class="btn-hero">Actualizar</button></div>
+                <p>Demo: Ethereal captura el correo sin entregarlo al cliente. Solo se reintentan fallos confirmados o mensajes en cola. Los resultados inciertos o en proceso requieren revisar SMTP antes de cualquier reenvío.</p>
+                <div id="mail-result" class="admin-card" aria-live="polite"></div>
+            </section>
             
             <!-- Sección Productos -->
             <section id="admin-products" class="admin-section active">
@@ -1278,7 +1298,11 @@
                     </div>
                 </form>
                 
-                <div class="admin-card" id="products-container">
+                <div id="inventory-filter-banner" class="inventory-filter-banner" hidden>
+                    <p><strong id="inventory-filter-label"></strong><br>Inventario actual · no depende del mes ni del año.</p>
+                    <button type="button" class="btn-filter-secondary" onclick="clearInventoryFilter()">Quitar filtro de stock</button>
+                </div>
+                <div class="admin-card" id="products-container" tabindex="-1" aria-label="Listado de productos">
                     <div class="loading-spinner">
                         <i class="fa-solid fa-spinner fa-pulse"></i>
                         <p>Cargando productos...</p>
@@ -1475,12 +1499,14 @@
             let allCustomersData = [];
             let allCouponsData = [];
             let isLoadingProducts = false;
+            let productLoadVersion = 0;
             let isLoadingCustomers = false;
             let isLoadingCoupons = false;
             
             const adminProductFilters = {
                 nombre: '',
-                categoria: ''
+                categoria: '',
+                stockFilter: ''
             };
 
             function escapeHtml(value) {
@@ -1493,7 +1519,7 @@
             }
 
             function hasActiveProductFilters() {
-                return Boolean(adminProductFilters.nombre || adminProductFilters.categoria);
+                return Boolean(adminProductFilters.nombre || adminProductFilters.categoria || adminProductFilters.stockFilter);
             }
 
             function buildProductsUrl(page, limit = ADMIN_PRODUCTS_LIMIT) {
@@ -1510,7 +1536,8 @@
                     params.set('categoria', adminProductFilters.categoria);
                 }
 
-                return `/api/productos?${params.toString()}`;
+                if (adminProductFilters.stockFilter) params.set('stockFilter', adminProductFilters.stockFilter);
+                return `/api/productos${adminProductFilters.stockFilter ? '/inventario' : ''}?${params.toString()}`;
             }
 
             function buildCustomersUrl(page, limit = ADMIN_CUSTOMERS_LIMIT) {
@@ -1575,6 +1602,8 @@
             function resetProductFilters() {
                 adminProductFilters.nombre = '';
                 adminProductFilters.categoria = '';
+                adminProductFilters.stockFilter = '';
+                updateInventoryBanner();
 
                 const nameInput = document.getElementById('product-name-filter');
                 const categorySelect = document.getElementById('product-category-filter');
@@ -1584,6 +1613,32 @@
 
                 loadProducts(1);
             }
+
+            function updateInventoryBanner() {
+                document.getElementById('inventory-filter-banner').hidden = !adminProductFilters.stockFilter;
+                document.getElementById('inventory-filter-label').textContent = adminProductFilters.stockFilter === 'low' ? 'Filtro activo: stock bajo (1 a 5 unidades)' : 'Filtro activo: sin stock (0 unidades)';
+            }
+
+            function clearInventoryFilter() {
+                adminProductFilters.stockFilter = '';
+                updateInventoryBanner();
+                loadProducts(1);
+            }
+
+            window.openInventoryProducts = async (filter) => {
+                if (!['low', 'empty'].includes(filter)) return;
+                adminProductFilters.stockFilter = filter;
+                adminProductFilters.nombre = '';
+                adminProductFilters.categoria = '';
+                document.getElementById('product-name-filter').value = '';
+                document.getElementById('product-category-filter').value = '';
+                adminProductsPage = 1;
+                updateInventoryBanner();
+                switchAdminView('products');
+                document.getElementById('products-container').focus({ preventScroll: true });
+                document.getElementById('admin-products').scrollIntoView({ block: 'start', behavior: 'auto' });
+            };
+            window.clearInventoryFilter = clearInventoryFilter;
             
             function renderAdminProductsPagination(metadata) {
                 if (!metadata || !metadata.hasNextPage) {
@@ -1679,7 +1734,7 @@
                     return lastAdminProducts;
                 }
 
-                const response = await fetch(buildProductsUrl(1, totalItems));
+                const response = await fetch(buildProductsUrl(1, totalItems), { headers: getAuthHeaders(), cache: 'no-store' });
                 if (!response.ok) throw new Error('No se pudo exportar productos');
                 const payload = await response.json();
                 return getItemsFromResponse(payload);
@@ -1806,8 +1861,7 @@
             async function loadProducts(page = adminProductsPage) {
                 const container = document.getElementById('products-container');
                 
-                // Prevenir cargas simultáneas
-                if (isLoadingProducts) return;
+                const loadVersion = ++productLoadVersion;
                 isLoadingProducts = true;
                 
                 adminProductsPage = Math.max(Number(page) || 1, 1);
@@ -1818,19 +1872,19 @@
                         allProductsData = [];
                     }
                     
-                    const response = await fetch(buildProductsUrl(adminProductsPage));
-                    if (!response.ok) throw new Error('Error al cargar productos');
+                    if (adminProductsPage === 1) container.innerHTML = '<div class="loading-spinner" role="status">Cargando productos…</div>';
+                    const response = await fetch(buildProductsUrl(adminProductsPage), { headers: getAuthHeaders(), cache: 'no-store' });
+                    if (!response.ok) throw new Error(await getErrorMessage(response, 'Error al cargar productos'));
                     
                     const payload = await response.json();
+                    if (loadVersion !== productLoadVersion) return;
                     const products = getItemsFromResponse(payload);
                     const metadata = getPaginationFromResponse(payload, products.length);
                     lastAdminProducts = products;
                     lastProductsPagination = metadata;
                     
-                    if ((!products || products.length === 0) && metadata?.totalItems > 0 && adminProductsPage > 1) {
-                        await loadProducts(adminProductsPage - 1);
-                        isLoadingProducts = false;
-                        return;
+                    if ((!products || products.length === 0) && adminProductsPage > 1) {
+                        return await loadProducts(1);
                     }
 
                     if (!products || products.length === 0) {
@@ -1838,7 +1892,7 @@
                             container.innerHTML = `
                                 <div class="empty-state">
                                     <i class="fa-solid fa-box-open"></i>
-                                    <p>${hasActiveProductFilters() ? 'No hay productos que coincidan con el filtro' : 'No hay productos registrados'}</p>
+                                    <p>${adminProductFilters.stockFilter === 'low' ? 'No hay productos con stock entre 1 y 5 unidades que coincidan con los filtros actuales.' : adminProductFilters.stockFilter === 'empty' ? 'No hay productos sin stock que coincidan con los filtros actuales.' : hasActiveProductFilters() ? 'No hay productos que coincidan con el filtro' : 'No hay productos registrados'}</p>
                                     ${hasActiveProductFilters() ? `
                                         <button class="btn-hero" onclick="resetProductFilters()">
                                             <i class="fa-solid fa-rotate-left"></i> Limpiar filtros
@@ -1905,12 +1959,13 @@
                     container.innerHTML = html;
                     
                 } catch (error) {
+                    if (loadVersion !== productLoadVersion) return;
                     console.error('Error:', error);
                     if (adminProductsPage === 1) {
                         container.innerHTML = `
                             <div class="empty-state">
                                 <i class="fa-solid fa-circle-exclamation"></i>
-                                <p>Error al cargar productos: ${error.message}</p>
+                                <p>Error al cargar productos: ${escapeHtml(error.message)}</p>
                                 <button class="btn-hero" onclick="loadProducts()">
                                     <i class="fa-solid fa-rotate-right"></i> Reintentar
                                 </button>
@@ -1918,7 +1973,7 @@
                         `;
                     }
                 } finally {
-                    isLoadingProducts = false;
+                    if (loadVersion === productLoadVersion) isLoadingProducts = false;
                 }
             }
             
@@ -2333,7 +2388,7 @@
                     form.reset();
                     closeAdminModal();
                     await loadProductCategories();
-                    await loadProducts(productId ? adminProductsPage : 1);
+                    await loadProducts(1);
                     
                 } catch (error) {
                     console.error('Error:', error);
@@ -2865,7 +2920,7 @@ async function loadAdminOrders() {
                 const coupBtn = document.getElementById('nav-coup');
                 const ordersBtn = document.getElementById('nav-orders');
 
-                [[productsSec, 'products'], [customersSec, 'customers'], [couponsSec, 'coupons'], [ordersSec, 'orders']]
+                [[productsSec, 'products'], [customersSec, 'customers'], [couponsSec, 'coupons'], [ordersSec, 'orders'], [document.getElementById('admin-metrics'), 'metrics'], [document.getElementById('admin-mail'), 'mail']]
                     .forEach(([section, name]) => {
                         if (!section) return;
                         const active = view === name;
@@ -2873,7 +2928,7 @@ async function loadAdminOrders() {
                         section.classList.toggle('active', active);
                     });
 
-                [[prodBtn, 'products'], [custBtn, 'customers'], [coupBtn, 'coupons'], [ordersBtn, 'orders']]
+                [[prodBtn, 'products'], [custBtn, 'customers'], [coupBtn, 'coupons'], [ordersBtn, 'orders'], [document.getElementById('nav-metrics'), 'metrics'], [document.getElementById('nav-mail'), 'mail']]
                     .forEach(([button, name]) => button?.classList.toggle('active', view === name));
 
                 if (view === 'products') {
@@ -2884,6 +2939,10 @@ async function loadAdminOrders() {
                     loadCoupons();
                 } else if (view === 'orders') {
                     loadAdminOrders();
+                } else if (view === 'metrics') {
+                    window.loadMetrics();
+                } else if (view === 'mail') {
+                    window.loadOrderMail();
                 }
             }
             
@@ -2975,5 +3034,6 @@ async function loadAdminOrders() {
      })();
     </script>
     <script src="/js/corporate-admin.js?v=sprint3"></script>
+    <script src="/js/admin-insights.js?v=dashboard1"></script>
 </body>
 </html>

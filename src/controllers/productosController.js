@@ -32,6 +32,9 @@ const productosController = {
   getAll: async (req, res) => {
     try {
       const { categoria, nombre } = req.query;
+      const stockFilter = req.inventoryAdmin ? req.query.stockFilter : null;
+      if (req.inventoryAdmin && !['low', 'empty'].includes(stockFilter)) return res.status(400).json({ message: 'Filtro de inventario inválido' });
+      if (req.inventoryAdmin) res.set('Cache-Control', 'no-store');
       const sortBy = ['precio', 'nombre'].includes(req.query.sortBy)
         ? req.query.sortBy
         : 'id';
@@ -41,7 +44,7 @@ const productosController = {
       const { page, limit, offset } = getPaginationParams(req.query, 6);
       const today = new Date();
 
-      const whereCondition = {
+      const whereCondition = req.inventoryAdmin ? { stock: stockFilter === 'low' ? { [Op.between]: [1, 5] } : 0 } : {
         validFrom: { [Op.lte]: today },
         validTo: { [Op.gte]: today },
       };

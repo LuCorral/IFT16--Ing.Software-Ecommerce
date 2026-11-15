@@ -8,6 +8,7 @@ const { after, before, test } = require('node:test');
 const testDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'ecommerce-notificaciones-'));
 process.env.DB_STORAGE = path.join(testDirectory, 'ecommerce-test.sqlite');
 process.env.JWT_SECRET = 'temporary-test-secret-only';
+process.env.SMTP_HOST = '';
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
@@ -106,10 +107,10 @@ test('notificaciones de correo simulado', async (t) => {
     ];
 
     for (const [estado, patron] of cases) {
-      const response = await request(`/api/pedidos/${orderId}`, {
-        method: 'PUT',
-        headers: jsonHeaders(admin),
-        body: JSON.stringify({ estado }),
+      const response = await request(`/api/pedidos/${orderId}${estado === 'Pagado' ? '/pagar' : ''}`, {
+        method: estado === 'Pagado' ? 'POST' : 'PUT',
+        headers: jsonHeaders(estado === 'Pagado' ? client : admin),
+        body: JSON.stringify(estado === 'Pagado' ? { metodo: 'tarjeta' } : { estado }),
       });
       assert.equal(response.status, 200);
       const data = await response.json();
@@ -145,7 +146,7 @@ test('notificaciones de correo simulado', async (t) => {
     assert.equal(await NotificacionCorreo.count(), before);
   });
 
-  await t.test('el pago aprobado también genera su correo simulado', async () => {
+  await t.test('el pago aprobado también genera su correo de demostración', async () => {
     const created = await request('/api/pedidos', {
       method: 'POST',
       headers: jsonHeaders(client),
@@ -164,5 +165,18 @@ test('notificaciones de correo simulado', async (t) => {
     assert.equal(paidData.estadoPedido, 'Pagado');
     assert.equal(paidData.correo_simulado.estado_pedido, 'Pagado');
     assert.equal(paidData.correo_simulado.destinatario, client.email);
+  });
+  await t.test('rechazo y cambios administrativos sin pago no confirman aprobación; cancelar notifica una vez', async () => {
+    const created = await request('/api/pedidos', { method: 'POST', headers: jsonHeaders(client), body: JSON.stringify({ productos: [{ productoId: product.id, cantidad: 1 }] }) });
+    const order = (await created.json()).pedido;
+    const before = await NotificacionCorreo.count({ where: { pedido_id: order.id } });
+    const rejected = await request(`/api/pedidos/${order.id}/pagar`, { method: 'POST', headers: jsonHeaders(client), body: JSON.stringify({ metodo: 'tarjeta', resultadoSimulado: 'rechazado' }) });
+    assert.equal(rejected.status, 200); assert.equal(await NotificacionCorreo.count({ where: { pedido_id: order.id } }), before);
+    for (let i = 0; i < 2; i++) assert.equal((await request(`/api/pedidos/${order.id}/cancelar`, { method: 'PATCH', headers: jsonHeaders(client) })).status, 200);
+    assert.equal(await NotificacionCorreo.count({ where: { pedido_id: order.id, estado_pedido: 'Cancelado' } }), 1);
+    const manual = await request('/api/pedidos', { method: 'POST', headers: jsonHeaders(client), body: JSON.stringify({ productos: [{ productoId: product.id, cantidad: 1 }] }) });
+    const manualId = (await manual.json()).pedido.id;
+    assert.equal((await request(`/api/pedidos/${manualId}`, { method: 'PUT', headers: jsonHeaders(admin), body: JSON.stringify({ estado: 'Pagado' }) })).status, 200);
+    assert.equal(await NotificacionCorreo.count({ where: { pedido_id: manualId, estado_pedido: 'Pagado' } }), 0);
   });
 });

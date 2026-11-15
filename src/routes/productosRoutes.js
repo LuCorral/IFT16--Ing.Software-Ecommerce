@@ -5,6 +5,10 @@ const productosController = require("../controllers/productosController");
 const { authenticateToken, isAdmin } = require("../middlewares/authMiddleware");
 
 // Rutas públicas
+router.get('/inventario', authenticateToken, isAdmin, (req, res) => {
+  req.inventoryAdmin = true;
+  return productosController.getAll(req, res);
+});
 router.get("/", productosController.getAll);
 router.get("/:id", productosController.getById);
 

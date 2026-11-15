@@ -6,6 +6,7 @@ const { randomUUID } = require('node:crypto');
 const { test, before, after } = require('node:test');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ecommerce-corporate-'));
 process.env.NODE_ENV = 'test';
+process.env.SMTP_HOST = '';
 process.env.DB_STORAGE = path.join(directory, 'test.sqlite');
 process.env.JWT_SECRET = 'corporate-integration-test-secret-only';
 const sequelize = require('../src/config/database');
@@ -44,6 +45,21 @@ test('solo admin puede activar, asignar o consultar movimientos; JWT no puede el
   assert.equal((await assign('50000')).status, 409);
   await client.reload(); assert.equal(client.corporateEnabled, false); assert.equal(Number(client.corporateBalanceCents), 0);
 });
+test('SCRUM-108 consulta saldo propio sin permitir seleccionar otra cuenta', async () => {
+  assert.equal((await request('/api/auth/corporate-balance', 'GET', null, null)).status, 401);
+  await client.update({ corporateBalanceCents: 12345 });
+  await other.update({ corporateBalanceCents: 98765 });
+  const response = await request(`/api/auth/corporate-balance?userId=${other.id}`, 'GET', null, clientToken);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), { corporateEnabled: false, corporateBalanceCents: 12345, currency: 'ARS' });
+  await client.update({ corporateEnabled: true, corporateBalanceCents: 0 });
+  const active = await request('/api/auth/corporate-balance', 'GET', null, clientToken);
+  assert.deepEqual(await active.json(), { corporateEnabled: true, corporateBalanceCents: 0, currency: 'ARS' });
+  assert.equal((await request('/api/auth/corporate-balance', 'GET', null, adminToken)).status, 403);
+  await client.update({ corporateEnabled: false });
+});
+
 test('búsqueda por nombre, apellido y email funciona en servidor y conserva paginación', async () => {
   for (const search of ['ANA', 'empleado', 'ANA@EXAMPLE.TEST']) {
     const result = await (await request(`/api/usuarios?search=${encodeURIComponent(search)}&limit=1`)).json();

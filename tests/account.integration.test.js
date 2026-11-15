@@ -5,6 +5,7 @@ const path = require('node:path');
 const { test, before, after } = require('node:test');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ecommerce-account-'));
 process.env.NODE_ENV = 'test';
+process.env.SMTP_HOST = '';
 process.env.DB_STORAGE = path.join(directory, 'test.sqlite');
 process.env.JWT_SECRET = 'account-integration-test-secret-32chars';
 const sequelize = require('../src/config/database');
